@@ -34,6 +34,7 @@ Maintainers and contributors to this project are expected to conduct themselves 
   - View coverage stats as beautiful graphs.
   - Manually retrigger coverage calculation.
   - Trigger Keploy’s unit test generator to improve repo-level coverage.
+  
 
 - ⚙️ **Configurable via `keploy.yaml`**
   - Add an optional `coverageCommand` for repos that use custom tooling.
