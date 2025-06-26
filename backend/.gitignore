@@ -1,1 +1,45 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, coverage, and results
+*.test
+*.out
+*.coverprofile
+*.coverage
+*.cov
+
+# Output of go coverage tool
+*.cov.out
+
+# Output of build tools
+bin/
+build/
+dist/
+
+# Logs
+*.log
+
+# Dependency directories (go mod tidy will regenerate them)
+vendor/
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Environment files
 .env
+.env.local
+
+# Go workspace file
+go.work
+go.work.sum
