@@ -42,13 +42,6 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarCollapsed, activeTab, toggleSi
           {!sidebarCollapsed && <span className="text-sm">Repositories</span>}
         </li>
         <li
-          className={`hover:bg-[#263544] hover:text-[#FF7D2D] p-2 rounded-md transition-all duration-300 cursor-pointer flex ${sidebarCollapsed ? 'justify-center' : 'items-center'} ${activeTab === 'tests' ? 'bg-[#263544] text-[#FF7D2D] border-l-4 border-[#FF7D2D] shadow-md' : ''}`}
-          onClick={() => handleTabChange('tests')}
-        >
-          <ClipboardCheck size={16} className={`${sidebarCollapsed ? '' : 'mr-2'}`} />
-          {!sidebarCollapsed && <span className="text-sm">API Tests</span>}
-        </li>
-        <li
           className={`hover:bg-[#263544] hover:text-[#FF7D2D] p-2 rounded-md transition-all duration-300 cursor-pointer flex ${sidebarCollapsed ? 'justify-center' : 'items-center'} ${activeTab === 'settings' ? 'bg-[#263544] text-[#FF7D2D] border-l-4 border-[#FF7D2D] shadow-md' : ''}`}
           onClick={() => handleTabChange('settings')}
         >

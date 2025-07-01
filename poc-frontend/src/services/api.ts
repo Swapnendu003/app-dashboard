@@ -96,16 +96,12 @@ export const getUserRepositories = async (skip = 0, limit = 10, search = '', ref
     if (!refresh && requestCache[cacheKey] && (now - requestCache[cacheKey].timestamp < CACHE_TTL)) {
       return await requestCache[cacheKey].promise;
     }
-    const searchApi = axios.create({
-      baseURL: API_BASE_URL,
+    const promise = api.get(`/api/repositories?${params.toString()}`, {
       timeout: refresh ? 60000 : 30000,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getAuthToken()}`,
         'X-Request-ID': generateRequestId()
-      },
+      }
     });
-    const promise = searchApi.get(`/api/repositories?${params.toString()}`);
     if (!refresh) {
       requestCache[cacheKey] = {
         timestamp: now,
@@ -134,16 +130,12 @@ export const refreshRepositories = async (skip = 0, limit = 10, search = '') => 
     if (search) {
       params.append('search', search);
     }
-    const refreshApi = axios.create({
-      baseURL: API_BASE_URL,
+    const response = await api.get(`${endpoint}?${params.toString()}`, {
       timeout: 120000,
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getAuthToken()}`,
         'X-Request-ID': generateRequestId()
-      },
+      }
     });
-    const response = await refreshApi.get(`${endpoint}?${params.toString()}`);
     console.log(`Refresh request successful - received response:`, response.data);
     if (endpoint === '/api/repositories/force-refresh') {
       await new Promise(resolve => setTimeout(resolve, 2000));
