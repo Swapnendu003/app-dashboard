@@ -33,12 +33,9 @@ const PageSkeleton: React.FC<PageSkeletonProps> = ({
       setActiveTab('repositories');
     } else if (pathname === '/settings') {
       setActiveTab('settings');
-    } else if (pathname === '/tests') {
-      setActiveTab('tests');
     }
   }, [pathname]);
 
-  // Fetch user profile for avatar
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
