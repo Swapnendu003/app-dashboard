@@ -321,19 +321,20 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
   };
   
   return (
-    <div className="mt-8 space-y-4">
+    // Light theme: orange gradient background, light text
+    <div className="mt-8 space-y-4 bg-gradient-to-br from-orange-50 via-orange-100 to-white text-gray-900 p-4 rounded-lg">
       {repositories.length === 0 ? (
-        <div className="text-center py-12 bg-[#1F2B39]/50 rounded-lg border border-gray-700 p-8">
-          <BarChart2 className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-xl font-medium text-gray-300">No repositories available</h3>
-          <p className="mt-1 text-gray-500">
+        <div className="text-center py-12 bg-orange-100/50 rounded-lg border border-orange-200 p-8">
+          <BarChart2 className="mx-auto h-12 w-12 text-orange-400" />
+          <h3 className="mt-2 text-xl font-medium text-orange-700">No repositories available</h3>
+          <p className="mt-1 text-orange-500">
             Connect repositories to see your repositories or refresh from GitHub
           </p>
           {onRefreshRepositories && (
             <button
               onClick={onRefreshRepositories}
               disabled={isRefreshing}
-              className="mt-4 px-4 py-2 bg-[#263544] text-gray-300 hover:text-white rounded-md hover:bg-[#324559] flex items-center gap-2 transition-colors mx-auto"
+              className="mt-4 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-md hover:from-red-500 hover:to-orange-500 flex items-center gap-2 transition-colors mx-auto"
             >
               <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
               <span>Refresh from GitHub</span>
@@ -341,26 +342,26 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
           )}
         </div>
       ) : (
-        <div className="bg-[#1F2B39] p-6 rounded-lg border border-gray-700">
+        <div className="bg-white p-6 rounded-lg border border-orange-100 shadow hover:border-orange-400 transition-colors">
           {onRefreshRepositories && (
             <div className="mb-4 flex justify-end">
               <button
                 onClick={onRefreshRepositories}
                 disabled={isRefreshing}
-                className="px-3 py-1 bg-[#263544] text-gray-300 hover:text-white rounded-md hover:bg-[#324559] flex items-center gap-2 transition-colors text-sm"
+                className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-md hover:from-red-500 hover:to-orange-500 flex items-center gap-2 transition-colors"
               >
                 <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
                 <span>Refresh repos</span>
               </button>
             </div>
           )}
-          <div className="flex border-b border-gray-700 mb-6">
+          <div className="flex border-b border-orange-200 mb-6">
             <button
               onClick={() => setActiveTab('scanner')}
               className={`px-4 py-2 flex items-center ${
                 activeTab === 'scanner'
-                  ? 'border-b-2 border-[#FF7D2D] text-[#FF7D2D]'
-                  : 'text-gray-400 hover:text-gray-200'
+                  ? 'border-b-2 border-orange-500 text-orange-600'
+                  : 'text-orange-400 hover:text-orange-600'
               }`}
             >
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -371,10 +372,10 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
               disabled={!selectedRepo}
               className={`px-4 py-2 flex items-center ${
                 activeTab === 'history'
-                  ? 'border-b-2 border-[#FF7D2D] text-[#FF7D2D]'
+                  ? 'border-b-2 border-orange-500 text-orange-600'
                   : !selectedRepo 
                     ? 'text-gray-600 cursor-not-allowed' 
-                    : 'text-gray-400 hover:text-gray-200'
+                    : 'text-orange-400 hover:text-orange-600'
               }`}
             >
               <History className="w-4 h-4 mr-2" />
@@ -385,10 +386,10 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
               disabled={!selectedRepo}
               className={`px-4 py-2 flex items-center ${
                 activeTab === 'branches'
-                  ? 'border-b-2 border-[#FF7D2D] text-[#FF7D2D]'
+                  ? 'border-b-2 border-orange-500 text-orange-600'
                   : !selectedRepo 
                     ? 'text-gray-600 cursor-not-allowed' 
-                    : 'text-gray-400 hover:text-gray-200'
+                    : 'text-orange-400 hover:text-orange-600'
               }`}
             >
               <GitBranch className="w-4 h-4 mr-2" />
@@ -399,10 +400,10 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
               disabled={!selectedRepo}
               className={`px-4 py-2 flex items-center ${
                 activeTab === 'compare'
-                  ? 'border-b-2 border-[#FF7D2D] text-[#FF7D2D]'
+                  ? 'border-b-2 border-orange-500 text-orange-600'
                   : !selectedRepo 
                     ? 'text-gray-600 cursor-not-allowed' 
-                    : 'text-gray-400 hover:text-gray-200'
+                    : 'text-orange-400 hover:text-orange-600'
               }`}
             >
               <GitCompare className="w-4 h-4 mr-2" />
@@ -414,10 +415,10 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
               <div className="flex flex-col md:flex-row md:items-end md:space-x-4">
                 {renderRepositoryDropdown()}
                 <div className="flex-1">
-                  <label className="block text-sm text-gray-300 mb-1">Branch (optional)</label>
+                  <label className="block text-sm text-orange-700 mb-1">Branch (optional)</label>
                   <input
                     type="text"
-                    className="w-full p-2 bg-[#263544] text-white rounded-md border border-gray-700"
+                    className="w-full p-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200"
                     placeholder="e.g. main"
                     value={scanBranch}
                     onChange={e => setScanBranch(e.target.value)}
@@ -426,7 +427,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                 <button
                   onClick={handleCoverageScan}
                   disabled={!selectedRepo || loadingCoverage}
-                  className="mt-4 md:mt-0 px-4 py-2 bg-[#FF7D2D] text-white rounded-md hover:bg-[#e66f00] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="mt-4 md:mt-0 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-md hover:from-red-500 hover:to-orange-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {loadingCoverage ? (
                     <>
@@ -444,7 +445,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
               <div className="mt-3">
                 <button 
                   onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="text-sm text-gray-400 hover:text-[#FF7D2D] flex items-center"
+                  className="text-sm text-orange-400 hover:text-orange-600 flex items-center"
                 >
                   <span className="mr-1">{showAdvanced ? 'Hide' : 'Show'} advanced settings</span>
                   <svg 
@@ -457,8 +458,8 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                   </svg>
                 </button>
                 {showAdvanced && (
-                  <div className="mt-3 p-4 bg-[#263544]/30 border border-gray-700 rounded-lg">
-                    <h4 className="text-sm font-medium text-gray-300 mb-3">Scan Settings</h4>
+                  <div className="mt-3 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    <h4 className="text-sm font-medium text-orange-700 mb-3">Scan Settings</h4>
                     <div className="space-y-3">
                       <div className="flex items-center">
                         <div className="relative flex items-center">
@@ -505,7 +506,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                         </label>
                       </div>
                       <div>
-                        <label htmlFor="timeout" className="block text-xs text-gray-400 mb-1">
+                        <label htmlFor="timeout" className="block text-xs text-orange-400 mb-1">
                           Clone timeout (seconds)
                         </label>
                         <input
@@ -518,7 +519,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                             ...scanSettings, 
                             cloneTimeout: parseInt(e.target.value) || 300
                           })}
-                          className="w-full max-w-xs p-2 bg-[#263544] text-white rounded-md border border-gray-700"
+                          className="w-full max-w-xs p-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200"
                         />
                       </div>
                     </div>
@@ -541,39 +542,39 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                 )}
               </div>
               {!selectedRepo && (
-                <div className="mt-6 text-center p-6 bg-[#263544]/30 border border-gray-700 rounded-lg">
-                  <BarChart2 className="mx-auto h-8 w-8 text-gray-500 mb-2" />
-                  <p className="text-gray-400">Please select a repository to run a coverage scan</p>
+                <div className="mt-6 text-center p-6 bg-orange-50 border border-orange-200 rounded-lg">
+                  <BarChart2 className="mx-auto h-8 w-8 text-orange-300 mb-2" />
+                  <p className="text-orange-400">Please select a repository to run a coverage scan</p>
                 </div>
               )}
               {coverageError && (
-                <div className="mt-4 bg-red-900/20 border border-red-800 p-4 rounded-md">
+                <div className="mt-4 bg-red-100 border border-red-300 p-4 rounded-md">
                   <div className="flex items-start space-x-3">
                     <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
                     <div>
-                      <p className="text-red-400 font-medium">Scan Failed</p>
-                      <p className="text-sm text-red-300 mt-1">{coverageError}</p>
+                      <p className="text-red-700 font-medium">Scan Failed</p>
+                      <p className="text-sm text-red-500 mt-1">{coverageError}</p>
                     </div>
                   </div>
                 </div>
               )}
               {success && (
-                <div className="mt-4 bg-green-900/20 border border-green-800 p-4 rounded-md">
+                <div className="mt-4 bg-green-100 border border-green-300 p-4 rounded-md">
                   <div className="flex items-start space-x-3">
-                    <CheckCircle2 className="h-5 w-5 text-green-500 mt-0.5" />
+                    <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
                     <div>
-                      <p className="text-green-400 font-medium">Success!</p>
-                      <p className="text-sm text-green-300 mt-1">{success}</p>
+                      <p className="text-green-700 font-medium">Success!</p>
+                      <p className="text-sm text-green-600 mt-1">{success}</p>
                     </div>
                   </div>
                 </div>
               )}
               {jobId && jobStatus && jobStatus !== 'completed' && jobStatus !== 'failed' && (
-                <div className="mt-4 bg-blue-900/20 border border-blue-800 p-4 rounded-md">
+                <div className="mt-4 bg-blue-100 border border-blue-300 p-4 rounded-md">
                   <div className="flex items-start space-x-3">
                     <Loader2 className="h-5 w-5 text-blue-500 animate-spin mt-0.5" />
                     <div>
-                      <p className="text-blue-400 font-medium">
+                      <p className="text-blue-700 font-medium">
                         Coverage scan in progress
                       </p>
                       <div className="mt-2">
@@ -592,60 +593,60 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
               {coverageResult && (
                 <div className="mt-6 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-[#263544] p-4 rounded-md">
-                      <span className="block text-sm text-gray-400">Total Coverage</span>
-                      <span className="text-2xl font-bold text-[#FF7D2D]">{coverageResult.total_coverage.toFixed(2)}%</span>
+                    <div className="bg-orange-50 p-4 rounded-md border border-orange-100">
+                      <span className="block text-sm text-orange-400">Total Coverage</span>
+                      <span className="text-2xl font-bold text-orange-600">{coverageResult.total_coverage.toFixed(2)}%</span>
                     </div>
-                    <div className="bg-[#263544] p-4 rounded-md">
-                      <span className="block text-sm text-gray-400">Files Scanned</span>
-                      <span className="text-2xl font-bold text-[#FF7D2D]">{coverageResult.files?.length ?? 0}</span>
+                    <div className="bg-orange-50 p-4 rounded-md border border-orange-100">
+                      <span className="block text-sm text-orange-400">Files Scanned</span>
+                      <span className="text-2xl font-bold text-orange-600">{coverageResult.files?.length ?? 0}</span>
                     </div>
                   </div>
                   {coverageResult.files && coverageResult.files.length > 0 && (
                     <FileHeatmap files={coverageResult.files} />
                   )}
-                  <div className="mt-2">
-                    <div className="mb-2 flex items-center bg-[#263544] border border-gray-700 rounded-md">
-                      <Search className="ml-3 h-4 w-4 text-gray-400" />
+                    <div className="mt-2">
+                    <div className="mb-2 flex items-center bg-orange-50 border border-orange-200 rounded-md">
+                      <Search className="ml-3 h-4 w-4 text-orange-400" />
                       <input
-                        type="text"
-                        placeholder="Search files..."
-                        className="w-full bg-transparent p-2 text-sm text-gray-300 focus:outline-none"
-                        onChange={(e) => {
-                          const fileQuery = e.target.value.toLowerCase();
-                        }}
+                      type="text"
+                      placeholder="Search files..."
+                      className="w-full bg-transparent p-2 text-sm text-orange-900 focus:outline-none"
+                      onChange={(e) => {
+                        const fileQuery = e.target.value.toLowerCase();
+                      }}
                       />
                     </div>
-                    <div className="max-h-64 overflow-y-auto rounded-md border border-gray-700">
+                    <div className="max-h-64 overflow-y-auto rounded-md border border-orange-200">
                       <table className="w-full table-auto">
-                        <thead className="bg-[#263544]">
-                          <tr>
-                            <th className="px-3 py-2 text-left text-sm text-gray-300">File</th>
-                            <th className="px-3 py-2 text-right text-sm text-gray-300">Coverage</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-700 bg-[#1F2B39]/80">
-                          {(coverageResult.files ?? []).map(f => (
-                            <tr key={f.file} className="hover:bg-[#263544] transition-colors">
-                              <td className="px-3 py-1 text-sm text-gray-300 truncate">{f.file}</td>
-                              <td className="px-3 py-1 text-sm text-right text-[#FF7D2D]">
-                                {f.coverage.toFixed(1)}%
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
+                      <thead className="bg-orange-100">
+                        <tr>
+                        <th className="px-3 py-2 text-left text-sm text-orange-700">File</th>
+                        <th className="px-3 py-2 text-right text-sm text-orange-700">Coverage</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-orange-100 bg-white">
+                        {(coverageResult.files ?? []).map(f => (
+                        <tr key={f.file} className="hover:bg-orange-50 transition-colors">
+                          <td className="px-3 py-1 text-sm text-orange-900 truncate">{f.file}</td>
+                          <td className="px-3 py-1 text-sm text-right text-orange-600">
+                          {f.coverage.toFixed(1)}%
+                          </td>
+                        </tr>
+                        ))}
+                      </tbody>
                       </table>
                     </div>
-                  </div>
+                    </div>
                   <button
                     onClick={() => setCoverageResult(null)}
-                    className="mt-4 text-sm text-gray-400 hover:text-[#FF7D2D]"
+                    className="mt-4 text-sm text-orange-400 hover:text-orange-600"
                   >Hide Results</button>
                 </div>
               )}
               {loadingCoverage && !coverageResult && (
                 <div className="flex justify-center items-center h-32">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#FF7D2D]"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
                 </div>
               )}
             </div>

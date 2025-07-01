@@ -82,7 +82,7 @@ const PageSkeleton: React.FC<PageSkeletonProps> = ({
     : "ml-56 transition-all duration-300 ease-in-out";
 
   return (
-    <div className="flex h-screen bg-gray-900">
+    <div className="flex h-screen bg-[#f8fafc]">
       <Sidebar
         sidebarCollapsed={sidebarCollapsed}
         activeTab={activeTab}
@@ -90,11 +90,11 @@ const PageSkeleton: React.FC<PageSkeletonProps> = ({
         handleTabChange={handleTabChange}
       />
       <div className={`flex flex-col flex-1 ${mainContentClass}`}>
-        <div className="bg-[#1F2B39] text-white p-4 shadow-md flex justify-between items-center">
+        <div className="bg-white text-gray-900 p-4 shadow-md flex justify-between items-center border-b border-gray-100">
           <div>
             <h1 className="text-2xl font-bold">{title}</h1>
             {subtitle && (
-              <p className="text-gray-400 text-sm">{subtitle}</p>
+              <p className="text-gray-500 text-sm">{subtitle}</p>
             )}
           </div>
           <div className="flex items-center">
@@ -104,7 +104,7 @@ const PageSkeleton: React.FC<PageSkeletonProps> = ({
                   src={userProfile.avatar_url} 
                   alt="Profile"
                   fill
-                  className="rounded-full border-2 border-[#FF7D2D] object-cover"
+                  className="rounded-full border-2 border-[#fb923c] object-cover"
                 />
               </div>
             ) : (
@@ -112,8 +112,10 @@ const PageSkeleton: React.FC<PageSkeletonProps> = ({
             )}
           </div>
         </div>
-        <div className="flex-1 overflow-x-hidden overflow-y-auto p-6">
-          {children}
+        <div className="flex-1 overflow-x-hidden overflow-y-auto p-6 bg-[#f8fafc]">
+          <div className="bg-white rounded-xl shadow p-6 min-h-full">
+            {children}
+          </div>
         </div>
       </div>
     </div>

@@ -99,7 +99,6 @@ func markJobComplete(jobID string, status string, resultID string, err string) {
 	}(jobID)
 }
 
-// Handles coverage scan request (sync/async)
 func RunCoverageScan(c *gin.Context) {
 	var req CoverageAsyncRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1374,3 +1373,5 @@ func GetCoverageJobStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, jobStatus)
 }
+
+

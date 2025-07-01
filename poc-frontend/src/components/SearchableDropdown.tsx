@@ -83,27 +83,27 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {label && <div className="block text-sm text-gray-300 mb-1">{label}</div>}
+      {label && <div className="block text-sm text-orange-700 mb-1">{label}</div>}
       
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex justify-between items-center p-2 bg-[#263544] border ${error ? 'border-red-600' : 'border-gray-700'} text-white rounded-md cursor-pointer`}
+        className={`flex justify-between items-center p-2 bg-orange-50 border ${error ? 'border-red-400' : 'border-orange-200'} text-orange-900 rounded-md cursor-pointer`}
       >
         <div className="truncate">{displayText}</div>
         <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} />
       </div>
       
       {isOpen && (
-        <div className="absolute z-10 mt-1 w-full bg-[#263544] border border-gray-700 rounded-md shadow-lg">
-          <div className="p-2 border-b border-gray-700 flex items-center">
-            <Search className="h-4 w-4 text-gray-500 mr-2" />
+        <div className="absolute z-10 mt-1 w-full bg-white border border-orange-200 rounded-md shadow-lg">
+          <div className="p-2 border-b border-orange-100 flex items-center">
+            <Search className="h-4 w-4 text-orange-300 mr-2" />
             <input
               ref={searchInputRef}
               type="text"
               value={searchText}
               onChange={e => setSearchText(e.target.value)}
               placeholder={searchPlaceholder}
-              className="bg-transparent text-white w-full focus:outline-none"
+              className="bg-transparent text-orange-900 w-full focus:outline-none"
             />
             {searchText && (
               <button 
@@ -111,7 +111,7 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
                   e.stopPropagation();
                   setSearchText('');
                 }} 
-                className="text-gray-500 hover:text-white"
+                className="text-orange-300 hover:text-orange-600"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -119,7 +119,7 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
           </div>
           
           {error && (
-            <div className="px-3 py-2 text-xs text-red-400 flex items-center border-b border-gray-700">
+            <div className="px-3 py-2 text-xs text-red-500 flex items-center border-b border-orange-100">
               <AlertCircle className="h-3 w-3 mr-1 flex-shrink-0" />
               <span>{error}</span>
             </div>
@@ -127,17 +127,17 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
           
           {loading ? (
             <div className="py-4 flex justify-center items-center">
-              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-[#FF7D2D]"></div>
-              <span className="ml-2 text-sm text-gray-400">Searching...</span>
+              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-orange-500"></div>
+              <span className="ml-2 text-sm text-orange-400">Searching...</span>
             </div>
           ) : options.length === 0 ? (
-            <div className="p-2 text-center text-gray-500">No options available</div>
+            <div className="p-2 text-center text-orange-300">No options available</div>
           ) : (
             <ul className="max-h-60 overflow-y-auto">
               {options.map(option => (
                 <li 
                   key={option.value}
-                  className={`p-2 hover:bg-[#324559] cursor-pointer ${option.value === value ? 'bg-[#324559] text-[#FF7D2D]' : 'text-white'}`}
+                  className={`p-2 hover:bg-orange-100 cursor-pointer ${option.value === value ? 'bg-orange-100 text-orange-700' : 'text-orange-900'}`}
                   onClick={() => {
                     onChange(option.value);
                     setIsOpen(false);
@@ -152,7 +152,7 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
       )}
       
       {error && !isOpen && (
-        <div className="mt-1 text-xs text-red-400 flex items-center">
+        <div className="mt-1 text-xs text-red-500 flex items-center">
           <AlertCircle className="h-3 w-3 mr-1 flex-shrink-0" />
           <span>{error}</span>
         </div>

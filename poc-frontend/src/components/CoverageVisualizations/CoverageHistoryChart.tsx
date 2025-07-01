@@ -15,8 +15,8 @@ const CoverageHistoryChart: React.FC<CoverageHistoryChartProps> = ({
 }) => {
   if (!data || data.length === 0) {
     return (
-      <div className="flex justify-center items-center h-[300px] bg-[#1F2B39] rounded-lg border border-gray-700 p-4">
-        <p className="text-gray-400">No historical data available</p>
+      <div className="flex justify-center items-center h-[300px] bg-white rounded-lg border border-orange-100 p-4">
+        <p className="text-orange-400">No historical data available</p>
       </div>
     );
   }
@@ -27,27 +27,27 @@ const CoverageHistoryChart: React.FC<CoverageHistoryChartProps> = ({
   }));
 
   return (
-    <div className="bg-[#1F2B39] rounded-lg border border-gray-700 p-4">
-      <h3 className="text-lg font-medium text-gray-300 mb-4">Coverage History</h3>
+    <div className="bg-white rounded-lg border border-orange-100 p-4">
+      <h3 className="text-lg font-medium text-orange-700 mb-4">Coverage History</h3>
       <ResponsiveContainer width="100%" height={height}>
         <LineChart
           data={formattedData}
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f3f3f3" />
           <XAxis 
             dataKey="formattedDate"
-            stroke="#888"
-            tick={{ fill: '#888', fontSize: 12 }}
+            stroke="#FFA366"
+            tick={{ fill: '#FFA366', fontSize: 12 }}
           />
           <YAxis 
-            stroke="#888"
+            stroke="#FFA366"
             domain={[0, 100]}
-            tick={{ fill: '#888', fontSize: 12 }}
+            tick={{ fill: '#FFA366', fontSize: 12 }}
             tickFormatter={(value) => `${value}%`}
           />
           <Tooltip 
-            contentStyle={{ backgroundColor: '#263544', borderColor: '#444', color: '#fff' }}
+            contentStyle={{ backgroundColor: '#FFF7ED', borderColor: '#FF7D2D', color: '#FF7D2D' }}
             formatter={(value) => [`${value}%`, 'Coverage']}
             labelFormatter={(label) => `Date: ${label}`}
           />
@@ -56,7 +56,7 @@ const CoverageHistoryChart: React.FC<CoverageHistoryChartProps> = ({
             dataKey="coverage" 
             stroke="#FF7D2D" 
             strokeWidth={2}
-            dot={{ fill: '#FF7D2D', r: 4, strokeWidth: 1, stroke: '#333' }}
+            dot={{ fill: '#FF7D2D', r: 4, strokeWidth: 1, stroke: '#FFA366' }}
             activeDot={{ r: 6, fill: '#FF7D2D', stroke: '#fff' }}
             animationDuration={1500}
           />

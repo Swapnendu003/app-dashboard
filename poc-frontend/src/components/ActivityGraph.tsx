@@ -92,12 +92,12 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ activities, totalCount = 
   
   const levelToColor = (level: number): string => {
     switch (level) {
-      case 0: return 'bg-[#1F2B39] border border-[#263544]'; // Empty/no activity
-      case 1: return 'bg-[#FF7D2D]/20';
-      case 2: return 'bg-[#FF7D2D]/40';
-      case 3: return 'bg-[#FF7D2D]/70';
-      case 4: return 'bg-[#FF7D2D]';
-      default: return 'bg-[#1F2B39] border border-[#263544]';
+      case 0: return 'bg-orange-50 border border-orange-200'; 
+      case 1: return 'bg-orange-100 border border-orange-200';
+      case 2: return 'bg-orange-200 border border-orange-300';
+      case 3: return 'bg-orange-300 border border-orange-400';
+      case 4: return 'bg-orange-400 border border-orange-500';
+      default: return 'bg-orange-50 border border-orange-200';
     }
   };
   
@@ -115,7 +115,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ activities, totalCount = 
     <>
       <div className="flex flex-col space-y-1 overflow-x-auto pb-2">
         {/* Month labels row */}
-        <div className="flex text-xs text-gray-400 pl-8 mb-1 min-w-[1000px]">
+        <div className="flex text-xs text-orange-400 pl-8 mb-1 min-w-[1000px]">
           {months.map((month, index) => (
             <div key={index} className="flex-1 text-center">{month}</div>
           ))}
@@ -123,7 +123,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ activities, totalCount = 
         
         {/* Day of week labels column */}
         <div className="flex min-w-[1000px]">
-          <div className="w-8 flex flex-col justify-around text-xs text-gray-400">
+          <div className="w-8 flex flex-col justify-around text-xs text-orange-400">
             <span>Sun</span>
             <span>Mon</span>
             <span>Tue</span>
@@ -140,7 +140,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ activities, totalCount = 
                 {week.map((day, dayIndex) => (
                   <div 
                     key={day.date} 
-                    className={`aspect-square w-full ${levelToColor(day.level)} rounded-sm hover:ring-1 hover:ring-[#FF7D2D] cursor-pointer transition-all`}
+                    className={`aspect-square w-full ${levelToColor(day.level)} rounded-sm hover:ring-1 hover:ring-orange-500 cursor-pointer transition-all`}
                     data-tooltip-id="activity-tooltip"
                     data-tooltip-content={`${day.count} ${day.count === 1 ? 'contribution' : 'contributions'} on ${formatDate(day.date)}`}
                   />
@@ -151,14 +151,14 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ activities, totalCount = 
         </div>
         
         {/* Legend */}
-        <div className="flex items-center justify-end space-x-2 mt-3 pt-3 border-t border-gray-700">
-          <span className="text-xs text-gray-400">Less</span>
+        <div className="flex items-center justify-end space-x-2 mt-3 pt-3 border-t border-orange-300">
+          <span className="text-xs text-orange-400">Less</span>
           <div className={`w-3 h-3 ${levelToColor(0)} rounded-sm`}></div>
           <div className={`w-3 h-3 ${levelToColor(1)} rounded-sm`}></div>
           <div className={`w-3 h-3 ${levelToColor(2)} rounded-sm`}></div>
           <div className={`w-3 h-3 ${levelToColor(3)} rounded-sm`}></div>
           <div className={`w-3 h-3 ${levelToColor(4)} rounded-sm`}></div>
-          <span className="text-xs text-gray-400">More</span>
+          <span className="text-xs text-orange-400">More</span>
         </div>
       </div>
       

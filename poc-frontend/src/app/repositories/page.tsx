@@ -45,12 +45,12 @@ const LanguageBar: React.FC<LanguageBarProps> = ({ languages }) => {
   
   const sortedLanguages = Object.entries(languages)
     .sort(([, percentA], [, percentB]) => Number(percentB) - Number(percentA))
-    .slice(0, 4); // Show top 4 languages
+    .slice(0, 4); 
   
   return (
     <div className="mt-3">
-      <div className="text-xs text-gray-400 mb-1">Languages</div>
-      <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden flex">
+      <div className="text-xs text-orange-400 mb-1">Languages</div>
+      <div className="w-full h-2 bg-orange-100 rounded-full overflow-hidden flex">
         {sortedLanguages.map(([lang, percent]) => (
           <div 
             key={lang} 
@@ -71,7 +71,7 @@ const LanguageBar: React.FC<LanguageBarProps> = ({ languages }) => {
               className="w-2 h-2 rounded-full mr-1" 
               style={{ backgroundColor: getLanguageColor(lang) }} 
             />
-            <span className="text-gray-400">{lang} <span className="opacity-75">{percent.toFixed(1)}%</span></span>
+            <span className="text-orange-400">{lang} <span className="opacity-75">{percent.toFixed(1)}%</span></span>
           </div>
         ))}
       </div>
@@ -311,7 +311,7 @@ const RepositoriesPage = () => {
         <button 
           onClick={() => handlePageChange(1)} 
           disabled={pagination.currentPage === 1}
-          className={`px-3 py-1 rounded-md ${pagination.currentPage === 1 ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-[#263544] hover:bg-[#324559] text-gray-300'}`}
+          className={`px-3 py-1 rounded-md border ${pagination.currentPage === 1 ? 'bg-orange-100 text-orange-300 cursor-not-allowed border-orange-100' : 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200'}`}
         >
           First
         </button>
@@ -319,7 +319,7 @@ const RepositoriesPage = () => {
         <button 
           onClick={() => handlePageChange(pagination.currentPage - 1)} 
           disabled={pagination.currentPage === 1}
-          className={`p-1 rounded-md ${pagination.currentPage === 1 ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-[#263544] hover:bg-[#324559] text-gray-300'}`}
+          className={`p-1 rounded-md border ${pagination.currentPage === 1 ? 'bg-orange-100 text-orange-300 cursor-not-allowed border-orange-100' : 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200'}`}
         >
           <ChevronLeft size={16} />
         </button>
@@ -328,7 +328,7 @@ const RepositoriesPage = () => {
           <button 
             key={page} 
             onClick={() => handlePageChange(page)} 
-            className={`px-3 py-1 rounded-md ${pagination.currentPage === page ? 'bg-[#FF7D2D] text-white' : 'bg-[#263544] hover:bg-[#324559] text-gray-300'}`}
+            className={`px-3 py-1 rounded-md border ${pagination.currentPage === page ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white border-orange-400' : 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200'}`}
           >
             {page}
           </button>
@@ -337,7 +337,7 @@ const RepositoriesPage = () => {
         <button 
           onClick={() => handlePageChange(pagination.currentPage + 1)} 
           disabled={pagination.currentPage === totalPages}
-          className={`p-1 rounded-md ${pagination.currentPage === totalPages ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-[#263544] hover:bg-[#324559] text-gray-300'}`}
+          className={`p-1 rounded-md border ${pagination.currentPage === totalPages ? 'bg-orange-100 text-orange-300 cursor-not-allowed border-orange-100' : 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200'}`}
         >
           <ChevronRight size={16} />
         </button>
@@ -345,12 +345,12 @@ const RepositoriesPage = () => {
         <button 
           onClick={() => handlePageChange(totalPages)} 
           disabled={pagination.currentPage === totalPages}
-          className={`px-3 py-1 rounded-md ${pagination.currentPage === totalPages ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-[#263544] hover:bg-[#324559] text-gray-300'}`}
+          className={`px-3 py-1 rounded-md border ${pagination.currentPage === totalPages ? 'bg-orange-100 text-orange-300 cursor-not-allowed border-orange-100' : 'bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200'}`}
         >
           Last
         </button>
         
-        <span className="text-sm text-gray-400 ml-2">
+        <span className="text-sm text-orange-400 ml-2">
           Page {pagination.currentPage} of {totalPages} ({pagination.totalCount} repositories)
         </span>
       </div>
@@ -359,19 +359,20 @@ const RepositoriesPage = () => {
 
   return (
     <PageSkeleton title="Repositories" subtitle="Manage your GitHub repositories">
-      <div className="min-h-full">
+      {/* Light theme background */}
+      <div className="min-h-full bg-gradient-to-br from-orange-50 via-orange-100 to-white text-gray-900 p-4 rounded-lg">
         {/* Tab controls */}
         <div className="flex space-x-4 mb-6">
           <button
             onClick={() => setActiveTab('repositories')}
-            className={`flex-1 px-4 py-2 rounded-md font-medium transition-all flex items-center justify-center space-x-2 ${activeTab === 'repositories' ? 'bg-[#263544] text-[#FF7D2D]' : 'text-gray-400 hover:text-white'}`}
+            className={`flex-1 px-4 py-2 rounded-md font-medium transition-all flex items-center justify-center space-x-2 ${activeTab === 'repositories' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white' : 'text-orange-500 hover:text-orange-700 bg-orange-50'}`}
           >
             <Folder size={16} />
             <span>Repositories</span>
           </button>
           <button
             onClick={() => setActiveTab('coverage')}
-            className={`flex-1 px-4 py-2 rounded-md font-medium transition-all flex items-center justify-center space-x-2 ${activeTab === 'coverage' ? 'bg-[#263544] text-[#FF7D2D]' : 'text-gray-400 hover:text-white'}`}
+            className={`flex-1 px-4 py-2 rounded-md font-medium transition-all flex items-center justify-center space-x-2 ${activeTab === 'coverage' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white' : 'text-orange-500 hover:text-orange-700 bg-orange-50'}`}
           >
             <BarChart2 size={16} />
             <span>Coverage</span>
@@ -387,7 +388,7 @@ const RepositoriesPage = () => {
                 <input
                   type="text"
                   placeholder="Search repositories..."
-                  className="w-full p-2 bg-[#263544] text-white rounded-md border border-gray-700"
+                  className="w-full p-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200"
                   onChange={(e) => handleSearch(e.target.value)}
                 />
               </div>
@@ -396,7 +397,7 @@ const RepositoriesPage = () => {
               <button
                 onClick={handleRefreshRepositories}
                 disabled={isRefreshing}
-                className="px-4 py-2 bg-[#263544] text-gray-300 hover:text-white rounded-md hover:bg-[#324559] flex items-center gap-2 transition-colors"
+                className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-md hover:from-red-500 hover:to-orange-500 flex items-center gap-2 transition-colors"
                 title="Refresh repositories from GitHub"
               >
                 <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
@@ -410,11 +411,11 @@ const RepositoriesPage = () => {
                 <div className="text-xs text-gray-400">
                  
                 </div>
-                
-                <div className="bg-[#1F2B39] rounded-md p-1 flex">
+                {/* Toggle view buttons - light theme */}
+                <div className="bg-orange-50 rounded-md p-1 flex border border-orange-100">
                   <button
                     onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-[#324559] text-[#FF7D2D]' : 'text-gray-400 hover:text-white'}`}
+                    className={`p-2 rounded-md ${viewMode === 'grid' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white' : 'text-orange-500 hover:text-orange-700'}`}
                     title="Grid view"
                   >
                     <LayoutGrid size={18} />
@@ -426,7 +427,7 @@ const RepositoriesPage = () => {
                         fetchRepositories(0, pagination.pageSize);
                       }
                     }}
-                    className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-[#324559] text-[#FF7D2D]' : 'text-gray-400 hover:text-white'}`}
+                    className={`p-2 rounded-md ${viewMode === 'list' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white' : 'text-orange-500 hover:text-orange-700'}`}
                     title="List view"
                   >
                     <LayoutList size={18} />
@@ -439,59 +440,59 @@ const RepositoriesPage = () => {
               viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {[...Array(6)].map((_, index) => (
-                    <div key={index} className="bg-[#1F2B39] p-4 rounded-lg shadow-md border border-gray-700 animate-pulse">
+                    <div key={index} className="bg-orange-100 p-4 rounded-lg shadow-md border border-orange-200 animate-pulse">
                       <div className="flex justify-between items-start mb-4">
-                        <div className="h-6 bg-gray-700 rounded w-3/4"></div>
-                        <div className="h-5 bg-gray-700 rounded-full w-16"></div>
+                        <div className="h-6 bg-orange-200 rounded w-3/4"></div>
+                        <div className="h-5 bg-orange-200 rounded-full w-16"></div>
                       </div>
                       <div className="space-y-2 mb-4">
-                        <div className="h-3 bg-gray-700 rounded w-full"></div>
-                        <div className="h-3 bg-gray-700 rounded w-5/6"></div>
+                        <div className="h-3 bg-orange-200 rounded w-full"></div>
+                        <div className="h-3 bg-orange-200 rounded w-5/6"></div>
                       </div>
                       <div className="flex justify-between items-center mt-6">
-                        <div className="h-3 bg-gray-700 rounded w-1/3"></div>
-                        <div className="h-7 bg-gray-700 rounded-md w-24"></div>
+                        <div className="h-3 bg-orange-200 rounded w-1/3"></div>
+                        <div className="h-7 bg-orange-200 rounded-md w-24"></div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="overflow-hidden rounded-lg border border-gray-700">
+                <div className="overflow-hidden rounded-lg border border-orange-100">
                   <table className="w-full table-auto">
-                    <thead className="bg-[#1F2B39] border-b border-gray-700">
+                    <thead className="bg-orange-50 border-b border-orange-100">
                       <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Repository</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-300 hidden md:table-cell">Description</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-300 hidden lg:table-cell">Languages</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-300 hidden md:table-cell">Created</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-300 hidden md:table-cell">Updated</th>
-                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-300">Visibility</th>
-                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-300">Actions</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-orange-700">Repository</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-orange-700 hidden md:table-cell">Description</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-orange-700 hidden lg:table-cell">Languages</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-orange-700 hidden md:table-cell">Created</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-orange-700 hidden md:table-cell">Updated</th>
+                        <th className="px-4 py-3 text-center text-sm font-medium text-orange-700">Visibility</th>
+                        <th className="px-4 py-3 text-right text-sm font-medium text-orange-700">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-700">
+                    <tbody className="divide-y divide-orange-100">
                       {[...Array(5)].map((_, index) => (
-                        <tr key={index} className="bg-[#1F2B39]/80 animate-pulse">
+                        <tr key={index} className="bg-orange-100 animate-pulse">
                           <td className="px-4 py-4">
-                            <div className="h-5 bg-gray-700 rounded w-3/4"></div>
+                            <div className="h-5 bg-orange-200 rounded w-3/4"></div>
                           </td>
                           <td className="px-4 py-4 hidden md:table-cell">
-                            <div className="h-4 bg-gray-700 rounded w-full"></div>
+                            <div className="h-4 bg-orange-200 rounded w-full"></div>
                           </td>
                           <td className="px-4 py-4 hidden lg:table-cell">
-                            <div className="h-2 bg-gray-700 rounded-full w-3/4"></div>
+                            <div className="h-2 bg-orange-200 rounded-full w-3/4"></div>
                           </td>
                           <td className="px-4 py-4 hidden md:table-cell">
-                            <div className="h-4 bg-gray-700 rounded w-24"></div>
+                            <div className="h-4 bg-orange-200 rounded w-24"></div>
                           </td>
                           <td className="px-4 py-4 hidden md:table-cell">
-                            <div className="h-4 bg-gray-700 rounded w-24"></div>
+                            <div className="h-4 bg-orange-200 rounded w-24"></div>
                           </td>
                           <td className="px-4 py-4 text-center">
-                            <div className="h-5 bg-gray-700 rounded-full w-16 mx-auto"></div>
+                            <div className="h-5 bg-orange-200 rounded-full w-16 mx-auto"></div>
                           </td>
                           <td className="px-4 py-4 text-right">
-                            <div className="h-6 bg-gray-700 rounded-md w-24 ml-auto"></div>
+                            <div className="h-6 bg-orange-200 rounded-md w-24 ml-auto"></div>
                           </td>
                         </tr>
                       ))}
@@ -500,35 +501,34 @@ const RepositoriesPage = () => {
                 </div>
               )
             ) : error ? (
-              <div className="bg-red-900/20 border border-red-800 p-4 rounded-md flex items-start space-x-3">
+              <div className="bg-red-100 border border-red-300 p-4 rounded-md flex items-start space-x-3">
                 <AlertCircle className="h-5 w-5 text-red-500" />
-                <span className="text-red-500">{error}</span>
+                <span className="text-red-700">{error}</span>
               </div>
             ) : repositories.length === 0 ? (
-              <div className="text-center py-12 bg-[#1F2B39]/50 rounded-lg border border-gray-700 p-8">
-                <Folder className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-xl font-medium text-gray-300">No repositories found</h3>
-                <p className="mt-1 text-gray-500">Connect your GitHub account to see your repositories here</p>
+              <div className="text-center py-12 bg-orange-100/50 rounded-lg border border-orange-200 p-8">
+                <Folder className="mx-auto h-12 w-12 text-orange-400" />
+                <h3 className="mt-2 text-xl font-medium text-orange-700">No repositories found</h3>
+                <p className="mt-1 text-orange-500">Connect your GitHub account to see your repositories here</p>
               </div>
             ) : viewMode === 'grid' ? (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {repositories.map((repo) => (
-                    <div key={repo.id} className="bg-[#1F2B39] p-4 rounded-lg shadow-md border border-gray-700 hover:border-[#FF7D2D] transition-all">
+                    <div key={repo.id} className="bg-white p-4 rounded-lg shadow-md border border-orange-100 hover:border-orange-400 transition-all">
                       <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-xl font-semibold text-[#FF7D2D] truncate max-w-[80%]" title={repo.name}>{repo.name}</h3>
-                        <span className={`text-xs font-medium rounded-full px-2 py-1 ${repo.private ? 'bg-gray-700 text-gray-300' : 'bg-green-800 text-green-200'}`}>
+                        <h3 className="text-xl font-semibold text-orange-600 truncate max-w-[80%]" title={repo.name}>{repo.name}</h3>
+                        <span className={`text-xs font-medium rounded-full px-2 py-1 ${repo.private ? 'bg-orange-100 text-orange-400' : 'bg-green-100 text-green-700'}`}>
                           {repo.private ? 'Private' : 'Public'}
                         </span>
                       </div>
-                      <p className="text-gray-400 text-sm mb-2 line-clamp-2 h-10" title={repo.description || 'No description provided'}>
+                      {/* Description with brownish shade */}
+                      <p className="text-[#8B5C2A] text-sm mb-2 line-clamp-2 h-10" title={repo.description || 'No description provided'}>
                         {repo.description || 'No description provided'}
                       </p>
-                      
-                      {/* Add language bar */}
+                      {/* Language bar */}
                       <LanguageBar languages={repo.languages} />
-                      
-                      <div className="flex flex-wrap gap-4 text-xs text-gray-400 mt-3">
+                      <div className="flex flex-wrap gap-4 text-xs text-orange-400 mt-3">
                         <span className="flex items-center">
                           <span className="font-medium mr-1">Created:</span> 
                           {formatDate(repo.created_at)}
@@ -543,7 +543,7 @@ const RepositoriesPage = () => {
                           href={repo.html_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs bg-[#263544] hover:bg-[#324559] text-gray-300 hover:text-white py-1 px-3 rounded-md transition-colors cursor-pointer"
+                          className="text-xs bg-orange-50 hover:bg-orange-100 text-orange-700 hover:text-orange-900 py-1 px-3 rounded-md transition-colors cursor-pointer border border-orange-100"
                         >
                           View on GitHub
                         </a>
@@ -552,17 +552,17 @@ const RepositoriesPage = () => {
                   ))}
                 </div>
 
-                {/* Improved Show more button for grid view */}
+                {/* Show more button */}
                 {repositories.length < pagination.totalCount && (
                   <div className="flex justify-center mt-8">
                     <button
                       onClick={handleLoadMore}
                       disabled={loadingMore}
-                      className={`flex items-center gap-2 px-6 py-3 rounded-full bg-[#263544] hover:bg-[#324559] hover:border-[#FF7D2D] border border-transparent text-gray-300 hover:text-white transition-all ${loadingMore ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className={`flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-red-500 hover:to-orange-500 border border-transparent transition-all ${loadingMore ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {loadingMore ? 'Loading...' : (
                         <>
-                          Show More <ChevronDown size={16} className="text-[#FF7D2D]" />
+                          Show More <ChevronDown size={16} className="text-white" />
                         </>
                       )}
                     </button>
@@ -571,34 +571,35 @@ const RepositoriesPage = () => {
               </>
             ) : (
               <>
-                <div className="overflow-hidden rounded-lg border border-gray-700">
+                <div className="overflow-hidden rounded-lg border border-orange-100">
                   <table className="w-full table-auto">
-                    <thead className="bg-[#1F2B39] border-b border-gray-700">
+                    <thead className="bg-orange-50 border-b border-orange-100">
                       <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Repository</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-300 hidden md:table-cell">Description</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-300 hidden lg:table-cell">Languages</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-300 hidden md:table-cell">Created</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-300 hidden md:table-cell">Updated</th>
-                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-300">Visibility</th>
-                        <th className="px-4 py-3 text-right text-sm font-medium text-gray-300">Actions</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-orange-700">Repository</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-orange-700 hidden md:table-cell">Description</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-orange-700 hidden lg:table-cell">Languages</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-orange-700 hidden md:table-cell">Created</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-orange-700 hidden md:table-cell">Updated</th>
+                        <th className="px-4 py-3 text-center text-sm font-medium text-orange-700">Visibility</th>
+                        <th className="px-4 py-3 text-right text-sm font-medium text-orange-700">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-700">
+                    <tbody className="divide-y divide-orange-100">
                       {repositories.map((repo) => (
-                        <tr key={repo.id} className="bg-[#1F2B39]/80 hover:bg-[#263544] transition-colors">
-                          <td className="px-4 py-3 text-sm font-medium text-[#FF7D2D] max-w-[180px] truncate" title={repo.name}>
+                        <tr key={repo.id} className="bg-white hover:bg-orange-50 transition-colors">
+                          <td className="px-4 py-3 text-sm font-medium text-orange-600 max-w-[180px] truncate" title={repo.name}>
                             {repo.name}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-400 hidden md:table-cell w-[30%]">
+                          {/* Description with brownish shade */}
+                          <td className="px-4 py-3 text-sm text-[#8B5C2A] hidden md:table-cell w-[30%]">
                             <div className="line-clamp-1" title={repo.description || 'No description provided'}>
                               {repo.description || 'No description provided'}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-400 hidden lg:table-cell">
+                          <td className="px-4 py-3 text-sm text-orange-400 hidden lg:table-cell">
                             {repo.languages && Object.keys(repo.languages).length > 0 ? (
                               <div className="flex items-center space-x-2 max-w-[200px]">
-                                <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden flex">
+                                <div className="w-full h-2 bg-orange-100 rounded-full overflow-hidden flex">
                                   {Object.entries(repo.languages)
                                     .sort(([, percentA], [, percentB]) => Number(percentB) - Number(percentA))
                                     .slice(0, 4)
@@ -623,14 +624,14 @@ const RepositoriesPage = () => {
                               <span>-</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-400 hidden md:table-cell whitespace-nowrap">
+                          <td className="px-4 py-3 text-sm text-orange-400 hidden md:table-cell whitespace-nowrap">
                             {formatDate(repo.created_at)}
                           </td>
-                          <td className="px-4 py-3 text-sm text-gray-400 hidden md:table-cell whitespace-nowrap">
+                          <td className="px-4 py-3 text-sm text-orange-400 hidden md:table-cell whitespace-nowrap">
                             {formatDate(repo.updated_at)}
                           </td>
                           <td className="px-4 py-3 text-center whitespace-nowrap">
-                            <span className={`text-xs font-medium rounded-full px-2 py-1 ${repo.private ? 'bg-gray-700 text-gray-300' : 'bg-green-800 text-green-200'}`}>
+                            <span className={`text-xs font-medium rounded-full px-2 py-1 ${repo.private ? 'bg-orange-100 text-orange-400' : 'bg-green-100 text-green-700'}`}>
                               {repo.private ? 'Private' : 'Public'}
                             </span>
                           </td>
@@ -639,7 +640,7 @@ const RepositoriesPage = () => {
                               href={repo.html_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-block text-xs bg-[#263544] hover:bg-[#324559] text-gray-300 hover:text-white py-1 px-3 rounded-md transition-colors cursor-pointer"
+                              className="inline-block text-xs bg-orange-50 hover:bg-orange-100 text-orange-700 hover:text-orange-900 py-1 px-3 rounded-md transition-colors cursor-pointer border border-orange-100"
                             >
                               View on GitHub
                             </a>
@@ -649,7 +650,6 @@ const RepositoriesPage = () => {
                     </tbody>
                   </table>
                 </div>
-
                 {/* Pagination controls for list view */}
                 {pagination.totalCount > pagination.pageSize && (
                   <PaginationControls />
@@ -658,7 +658,7 @@ const RepositoriesPage = () => {
             )}
           </>
         ) : (
-          /* Coverage tab content */
+          // Coverage tab content
           <CoverageTab 
             repositories={repositories} 
             onRefreshRepositories={handleRefreshRepositories}

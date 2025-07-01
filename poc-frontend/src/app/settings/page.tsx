@@ -69,21 +69,22 @@ const SettingsPage = () => {
 
   return (
     <PageSkeleton title="Settings" subtitle="Manage your account settings">
-      <div className="min-h-full">
+      {/* Light theme background */}
+      <div className="min-h-full bg-gradient-to-br from-orange-50 via-orange-100 to-white text-gray-900 p-4 rounded-lg">
         {loading ? (
           <div className="flex justify-center items-center h-64">
-            <Loader2 className="h-8 w-8 text-[#FF7D2D] animate-spin" />
+            <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
           </div>
         ) : error ? (
-          <div className="bg-red-900/20 border border-red-800 p-4 rounded-md flex items-start space-x-3">
+          <div className="bg-red-100 border border-red-300 p-4 rounded-md flex items-start space-x-3">
             <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-            <span className="text-red-500">{error}</span>
+            <span className="text-red-700">{error}</span>
           </div>
         ) : (
-          <div className="bg-[#1F2B39] rounded-lg shadow-lg p-6 max-w-2xl mx-auto border border-gray-700">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-2xl mx-auto border border-orange-100">
             {/* Profile Section with Avatar */}
-            <div className="flex flex-col items-center sm:flex-row sm:items-start gap-6 mb-8 p-6 bg-[#263544]/80 rounded-lg border border-gray-700 hover:border-[#FF7D2D] transition-colors">
-              <div className="relative h-24 w-24 rounded-full border-4 border-[#FF7D2D] overflow-hidden flex-shrink-0">
+            <div className="flex flex-col items-center sm:flex-row sm:items-start gap-6 mb-8 p-6 bg-orange-50/80 rounded-lg border border-orange-100 hover:border-orange-400 transition-colors">
+              <div className="relative h-24 w-24 rounded-full border-4 border-orange-400 overflow-hidden flex-shrink-0">
                 {user && user.avatar_url ? (
                   <Image
                     src={user.avatar_url}
@@ -92,16 +93,16 @@ const SettingsPage = () => {
                     className="object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full bg-[#263544] flex items-center justify-center">
-                    <User size={48} className="text-gray-400" />
+                  <div className="w-full h-full bg-orange-50 flex items-center justify-center">
+                    <User size={48} className="text-orange-300" />
                   </div>
                 )}
               </div>
               
               <div className="flex flex-col items-center sm:items-start">
-                <h2 className="text-xl font-bold text-white">{user?.name || 'User'}</h2>
-                <p className="text-gray-400">{user?.email || 'No email available'}</p>
-                <div className="mt-2 px-3 py-1 bg-[#FF7D2D]/20 text-[#FF7D2D] text-xs rounded-full">
+                <h2 className="text-xl font-bold text-orange-700">{user?.name || 'User'}</h2>
+                <p className="text-orange-400">{user?.email || 'No email available'}</p>
+                <div className="mt-2 px-3 py-1 bg-orange-100 text-orange-600 text-xs rounded-full">
                   GitHub User
                 </div>
               </div>
@@ -109,21 +110,21 @@ const SettingsPage = () => {
             
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-200 border-b border-gray-700 pb-2">Profile Information</h3>
+                <h3 className="text-lg font-medium text-orange-700 border-b border-orange-100 pb-2">Profile Information</h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <label htmlFor="displayName" className="text-sm text-gray-400">Display Name</label>
+                    <label htmlFor="displayName" className="text-sm text-orange-400">Display Name</label>
                     <input
                       type="text"
                       id="displayName"
                       name="displayName"
                       value={formData.displayName}
                       onChange={handleFormChange}
-                      className="w-full px-3 py-2 bg-[#263544] border border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF7D2D] text-white"
+                      className="w-full px-3 py-2 bg-orange-50 border border-orange-200 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-400 text-orange-900"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="email" className="text-sm text-gray-400">Email Address</label>
+                    <label htmlFor="email" className="text-sm text-orange-400">Email Address</label>
                     <input
                       type="email"
                       id="email"
@@ -131,16 +132,16 @@ const SettingsPage = () => {
                       value={formData.email}
                       onChange={handleFormChange}
                       disabled
-                      className="w-full px-3 py-2 bg-[#263544]/50 border border-gray-700 rounded-md text-gray-400"
+                      className="w-full px-3 py-2 bg-orange-50 border border-orange-200 rounded-md text-orange-300"
                     />
-                    <p className="text-xs text-gray-500">Email is managed by GitHub</p>
+                    <p className="text-xs text-orange-300">Email is managed by GitHub</p>
                   </div>
                 </div>
               </div>
               
               {/* Notification Preferences */}
               <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-200 border-b border-gray-700 pb-2">Notification Preferences</h3>
+                <h3 className="text-lg font-medium text-orange-700 border-b border-orange-100 pb-2">Notification Preferences</h3>
                 <div className="space-y-3">
                   <div className="flex items-center">
                     <input
@@ -149,9 +150,9 @@ const SettingsPage = () => {
                       name="notificationEmail"
                       checked={formData.notificationEmail}
                       onChange={handleFormChange}
-                      className="h-4 w-4 rounded border-gray-700 bg-[#263544] text-[#FF7D2D] focus:ring-[#FF7D2D]"
+                      className="h-4 w-4 rounded border-orange-200 bg-orange-50 text-orange-500 focus:ring-orange-400"
                     />
-                    <label htmlFor="notificationEmail" className="ml-2 block text-sm text-gray-300">
+                    <label htmlFor="notificationEmail" className="ml-2 block text-sm text-orange-700">
                       Email Notifications
                     </label>
                   </div>
@@ -162,9 +163,9 @@ const SettingsPage = () => {
                       name="notificationSlack"
                       checked={formData.notificationSlack}
                       onChange={handleFormChange}
-                      className="h-4 w-4 rounded border-gray-700 bg-[#263544] text-[#FF7D2D] focus:ring-[#FF7D2D]"
+                      className="h-4 w-4 rounded border-orange-200 bg-orange-50 text-orange-500 focus:ring-orange-400"
                     />
-                    <label htmlFor="notificationSlack" className="ml-2 block text-sm text-gray-300">
+                    <label htmlFor="notificationSlack" className="ml-2 block text-sm text-orange-700">
                       Slack Notifications
                     </label>
                   </div>
@@ -175,7 +176,7 @@ const SettingsPage = () => {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-4 py-2 bg-[#FF7D2D] hover:bg-[#E86D1D] text-white font-medium rounded-md transition-colors flex items-center space-x-2 disabled:opacity-50"
+                  className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 hover:from-red-500 hover:to-orange-500 text-white font-medium rounded-md transition-colors flex items-center space-x-2 disabled:opacity-50"
                 >
                   {isSaving ? (
                     <>

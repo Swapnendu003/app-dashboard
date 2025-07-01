@@ -72,27 +72,27 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
     });
     return (
       <div className="mt-6">
-        <h3 className="text-lg font-semibold mb-2">File Coverage Differences</h3>
+        <h3 className="text-lg font-semibold mb-2 text-orange-700">File Coverage Differences</h3>
         <div className="overflow-x-auto">
-          <table className="min-w-full bg-white rounded-lg overflow-hidden">
-            <thead className="bg-gray-100">
+          <table className="min-w-full bg-white rounded-lg overflow-hidden border border-orange-100">
+            <thead className="bg-orange-50">
               <tr>
-                <th className="py-2 px-4 text-left">File</th>
-                <th className="py-2 px-4 text-right">{branch1} (%)</th>
-                <th className="py-2 px-4 text-right">{branch2} (%)</th>
-                <th className="py-2 px-4 text-right">Difference</th>
+                <th className="py-2 px-4 text-left text-orange-700">File</th>
+                <th className="py-2 px-4 text-right text-orange-700">{branch1} (%)</th>
+                <th className="py-2 px-4 text-right text-orange-700">{branch2} (%)</th>
+                <th className="py-2 px-4 text-right text-orange-700">Difference</th>
               </tr>
             </thead>
             <tbody>
               {sortedDiffs.slice(0, 50).map((diff, index) => (
-                <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
-                  <td className="py-2 px-4 text-sm font-mono truncate max-w-xs" title={diff.file}>
+                <tr key={index} className={index % 2 === 0 ? 'bg-orange-50' : ''}>
+                  <td className="py-2 px-4 text-sm font-mono truncate max-w-xs text-orange-900" title={diff.file}>
                     {diff.file}
                   </td>
-                  <td className="py-2 px-4 text-right">
+                  <td className="py-2 px-4 text-right text-orange-600">
                     {diff.branch1.toFixed(1)}%
                   </td>
-                  <td className="py-2 px-4 text-right">
+                  <td className="py-2 px-4 text-right text-orange-600">
                     {diff.branch2.toFixed(1)}%
                   </td>
                   <td className={`py-2 px-4 text-right font-medium ${getColorForDiff(diff.diff)}`}>
@@ -104,7 +104,7 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
           </table>
         </div>
         {compareResult.file_diffs.length > 50 && (
-          <div className="text-sm text-gray-500 mt-2">
+          <div className="text-sm text-orange-400 mt-2">
             Showing 50 of {compareResult.file_diffs.length} files with the largest differences.
           </div>
         )}
@@ -113,15 +113,15 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
   };
 
   return (
-    <div className="bg-[#1F2B39] rounded-lg border border-gray-700 p-4">
-      <h2 className="text-lg font-semibold mb-4 text-gray-300">Branch Coverage Comparison</h2>
+    <div className="bg-white rounded-lg border border-orange-100 p-4">
+      <h2 className="text-lg font-semibold mb-4 text-orange-700">Branch Coverage Comparison</h2>
       <div className="flex flex-col md:flex-row gap-4 mb-4">
         <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-300 mb-1">Branch 1</label>
+          <label className="block text-sm font-medium text-orange-700 mb-1">Branch 1</label>
           <select
             value={branch1}
             onChange={(e) => setBranch1(e.target.value)}
-            className="w-full p-2 bg-[#263544] text-gray-300 rounded border border-gray-700"
+            className="w-full p-2 bg-orange-50 text-orange-900 rounded border border-orange-200"
           >
             {availableBranches.map((branch) => (
               <option key={branch} value={branch}>{branch}</option>
@@ -129,11 +129,11 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
           </select>
         </div>
         <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-300 mb-1">Branch 2</label>
+          <label className="block text-sm font-medium text-orange-700 mb-1">Branch 2</label>
           <select
             value={branch2}
             onChange={(e) => setBranch2(e.target.value)}
-            className="w-full p-2 bg-[#263544] text-gray-300 rounded border border-gray-700"
+            className="w-full p-2 bg-orange-50 text-orange-900 rounded border border-orange-200"
           >
             {availableBranches.map((branch) => (
               <option key={branch} value={branch}>{branch}</option>
@@ -144,49 +144,49 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
           <button
             onClick={handleCompare}
             disabled={isLoading}
-            className="px-4 py-2 bg-[#FF7D2D] text-white rounded hover:bg-[#e66f00] transition-colors disabled:opacity-50"
+            className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded hover:from-red-500 hover:to-orange-500 transition-colors disabled:opacity-50"
           >
             {isLoading ? 'Comparing...' : 'Compare'}
           </button>
         </div>
       </div>
       {error && (
-        <div className="mb-4 p-3 bg-red-900/20 border border-red-800 rounded flex items-center">
+        <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded flex items-center">
           <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-          <span className="text-red-500">{error}</span>
+          <span className="text-red-700">{error}</span>
         </div>
       )}
       {isLoading && (
         <div className="flex justify-center items-center h-32">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#FF7D2D]"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
         </div>
       )}
       {compareResult && !isLoading && (
         <div className="mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-[#263544] p-4 rounded-lg border border-gray-700">
-              <h3 className="text-md font-semibold mb-2 text-gray-300">Coverage Summary</h3>
+            <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
+              <h3 className="text-md font-semibold mb-2 text-orange-700">Coverage Summary</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-400">Branch 1: {compareResult.branch1}</p>
-                  <p className="text-2xl font-bold text-[#FF7D2D]">{compareResult.coverage1.toFixed(1)}%</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-sm text-orange-400">Branch 1: {compareResult.branch1}</p>
+                  <p className="text-2xl font-bold text-orange-600">{compareResult.coverage1.toFixed(1)}%</p>
+                  <p className="text-xs text-orange-300">
                     {new Date(compareResult.branch1_date).toLocaleDateString()}
                   </p>
                   {compareResult.branch1_commit && (
-                    <p className="text-xs text-gray-500 font-mono">
+                    <p className="text-xs text-orange-300 font-mono">
                       {compareResult.branch1_commit.substring(0, 7)}
                     </p>
                   )}
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400">Branch 2: {compareResult.branch2}</p>
-                  <p className="text-2xl font-bold text-[#FF7D2D]">{compareResult.coverage2.toFixed(1)}%</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-sm text-orange-400">Branch 2: {compareResult.branch2}</p>
+                  <p className="text-2xl font-bold text-orange-600">{compareResult.coverage2.toFixed(1)}%</p>
+                  <p className="text-xs text-orange-300">
                     {new Date(compareResult.branch2_date).toLocaleDateString()}
                   </p>
                   {compareResult.branch2_commit && (
-                    <p className="text-xs text-gray-500 font-mono">
+                    <p className="text-xs text-orange-300 font-mono">
                       {compareResult.branch2_commit.substring(0, 7)}
                     </p>
                   )}
@@ -194,9 +194,9 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
               </div>
               <div
                 className={`mt-4 p-3 rounded text-center font-semibold flex items-center justify-center text-lg ${
-                  compareResult.diff_label === 'better' ? 'bg-green-900/20 border border-green-800 text-green-500' : 
-                  compareResult.diff_label === 'worse' ? 'bg-red-900/20 border border-red-800 text-red-500' : 
-                  'bg-gray-800 text-gray-400'
+                  compareResult.diff_label === 'better' ? 'bg-green-100 border border-green-300 text-green-600' : 
+                  compareResult.diff_label === 'worse' ? 'bg-red-100 border border-red-300 text-red-600' : 
+                  'bg-orange-50 text-orange-400'
                 }`}
               >
                 {getDiffIcon(compareResult.coverage_diff)}
@@ -209,8 +209,8 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
                 </span>
               </div>
             </div>
-            <div className="bg-[#263544] p-4 rounded-lg border border-gray-700">
-              <h3 className="text-md font-semibold mb-2 text-gray-300">Coverage Distribution</h3>
+            <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
+              <h3 className="text-md font-semibold mb-2 text-orange-700">Coverage Distribution</h3>
               <FileHeatmap files={compareResult.file_diffs.map(f => ({ 
                 file: f.file, 
                 coverage: f.branch2 

@@ -41,11 +41,11 @@ const CoverageCard: React.FC<CoverageCardProps> = ({ coverageData, onClick }) =>
 
   return (
     <div 
-      className="bg-[#1F2B39] rounded-lg border border-gray-700 hover:border-[#FF7D2D] transition-all p-4 cursor-pointer"
+      className="bg-white rounded-lg border border-orange-100 hover:border-orange-400 transition-all p-4 cursor-pointer"
       onClick={onClick}
     >
       <div className="flex items-start justify-between mb-2">
-        <h4 className="text-lg font-medium text-[#FF7D2D] truncate" title={formatRepoName(coverageData.repository)}>
+        <h4 className="text-lg font-medium text-orange-700 truncate" title={formatRepoName(coverageData.repository)}>
           {formatRepoName(coverageData.repository)}
         </h4>
         <span className={`font-bold text-lg ${getCoverageColorClass(coverageData.total_coverage)}`}>
@@ -54,17 +54,17 @@ const CoverageCard: React.FC<CoverageCardProps> = ({ coverageData, onClick }) =>
       </div>
       
       <div className="space-y-2 text-sm">
-        <div className="flex items-center text-gray-400">
+        <div className="flex items-center text-orange-400">
           <GitBranch size={14} className="mr-2" />
           <span className="truncate">{coverageData.branch || 'default'}</span>
         </div>
-        <div className="flex items-center text-gray-400">
+        <div className="flex items-center text-orange-400">
           <CalendarDays size={14} className="mr-2" />
           <span>{formatDate(coverageData.timestamp)}</span>
         </div>
       </div>
       
-      <div className="mt-4 flex items-center justify-end text-xs text-blue-400 hover:text-blue-300">
+      <div className="mt-4 flex items-center justify-end text-xs text-orange-500 hover:text-orange-700">
         View Details <ArrowRight size={12} className="ml-1" />
       </div>
     </div>

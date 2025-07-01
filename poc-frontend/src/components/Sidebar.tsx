@@ -11,12 +11,20 @@ type SidebarProps = {
 
 const Sidebar: React.FC<SidebarProps> = ({ sidebarCollapsed, activeTab, toggleSidebar, handleTabChange }) => {
   return (
-    <div className={`${sidebarCollapsed ? 'w-14' : 'w-56'} fixed top-0 left-0 h-screen bg-gradient-to-b from-[#1F2B39] to-[#18273A] text-white shadow-lg rounded-r-lg border-r border-[#FF7D2D]/30 transition-all duration-300 ease-in-out z-10`}>
+    <div className={`${sidebarCollapsed ? 'w-14' : 'w-56'} fixed top-0 left-0 h-screen bg-white text-gray-900 shadow-lg border-r border-gray-200 transition-all duration-300 ease-in-out z-10`}>
       <div className="flex items-center justify-between p-3">
-        {!sidebarCollapsed && <div className="text-lg font-semibold">Keploy</div>}
+        {!sidebarCollapsed && (
+          <div className="flex justify-center w-full">
+            <img
+              src="https://camo.githubusercontent.com/74cbc79070c04e7077cfd86981c110678fe434e9269ea8f52eafb37b781cfb4a/68747470733a2f2f646f63732e6b65706c6f792e696f2f696d672f6b65706c6f792d6c6f676f2d6461726b2e7376673f733d32303026763d34"
+              alt="Keploy Logo"
+              className="h-8 object-contain"
+            />
+          </div>
+        )}
         <button
           onClick={toggleSidebar}
-          className="p-1 rounded-md hover:bg-[#2C3E50] hover:text-[#FF7D2D] transition-colors duration-200"
+          className="p-1 rounded-md hover:bg-orange-50 hover:text-orange-600 transition-colors duration-200"
           aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {sidebarCollapsed ? (
@@ -28,38 +36,38 @@ const Sidebar: React.FC<SidebarProps> = ({ sidebarCollapsed, activeTab, toggleSi
       </div>
       <ul className={`mt-4 space-y-2 px-2 ${sidebarCollapsed ? 'items-center' : ''}`}>
         <li
-          className={`hover:bg-[#263544] hover:text-[#FF7D2D] p-2 rounded-md transition-all duration-300 cursor-pointer flex ${sidebarCollapsed ? 'justify-center' : 'items-center'} ${activeTab === 'metrics' ? 'bg-[#263544] text-[#FF7D2D] border-l-4 border-[#FF7D2D] shadow-md' : ''}`}
+          className={`p-2 rounded-md transition-all duration-300 cursor-pointer flex ${sidebarCollapsed ? 'justify-center' : 'items-center'} ${activeTab === 'metrics' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'hover:bg-orange-50 hover:text-orange-600'}`}
           onClick={() => handleTabChange('metrics')}
         >
-          <BarChart2 size={16} className={`${sidebarCollapsed ? '' : 'mr-2'}`} />
-          {!sidebarCollapsed && <span className="text-sm">Metrics</span>}
+          <BarChart2 size={16} className={`${sidebarCollapsed ? '' : 'mr-2'} ${activeTab === 'metrics' ? 'text-white' : 'text-orange-500'}`} />
+          {!sidebarCollapsed && <span className="text-sm">{activeTab === 'metrics' ? <span className="font-semibold">Metrics</span> : 'Metrics'}</span>}
         </li>
         <li
-          className={`hover:bg-[#263544] hover:text-[#FF7D2D] p-2 rounded-md transition-all duration-300 cursor-pointer flex ${sidebarCollapsed ? 'justify-center' : 'items-center'} ${activeTab === 'repositories' ? 'bg-[#263544] text-[#FF7D2D] border-l-4 border-[#FF7D2D] shadow-md' : ''}`}
+          className={`p-2 rounded-md transition-all duration-300 cursor-pointer flex ${sidebarCollapsed ? 'justify-center' : 'items-center'} ${activeTab === 'repositories' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'hover:bg-orange-50 hover:text-orange-600'}`}
           onClick={() => handleTabChange('repositories')}
         >
-          <GitBranch size={16} className={`${sidebarCollapsed ? '' : 'mr-2'}`} />
-          {!sidebarCollapsed && <span className="text-sm">Repositories</span>}
+          <GitBranch size={16} className={`${sidebarCollapsed ? '' : 'mr-2'} ${activeTab === 'repositories' ? 'text-white' : 'text-orange-500'}`} />
+          {!sidebarCollapsed && <span className="text-sm">{activeTab === 'repositories' ? <span className="font-semibold">Repositories</span> : 'Repositories'}</span>}
         </li>
         <li
-          className={`hover:bg-[#263544] hover:text-[#FF7D2D] p-2 rounded-md transition-all duration-300 cursor-pointer flex ${sidebarCollapsed ? 'justify-center' : 'items-center'} ${activeTab === 'tests' ? 'bg-[#263544] text-[#FF7D2D] border-l-4 border-[#FF7D2D] shadow-md' : ''}`}
+          className={`p-2 rounded-md transition-all duration-300 cursor-pointer flex ${sidebarCollapsed ? 'justify-center' : 'items-center'} ${activeTab === 'tests' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'hover:bg-orange-50 hover:text-orange-600'}`}
           onClick={() => handleTabChange('tests')}
         >
-          <ClipboardCheck size={16} className={`${sidebarCollapsed ? '' : 'mr-2'}`} />
-          {!sidebarCollapsed && <span className="text-sm">API Tests</span>}
+          <ClipboardCheck size={16} className={`${sidebarCollapsed ? '' : 'mr-2'} ${activeTab === 'tests' ? 'text-white' : 'text-orange-500'}`} />
+          {!sidebarCollapsed && <span className="text-sm">{activeTab === 'tests' ? <span className="font-semibold">API Tests</span> : 'API Tests'}</span>}
         </li>
         <li
-          className={`hover:bg-[#263544] hover:text-[#FF7D2D] p-2 rounded-md transition-all duration-300 cursor-pointer flex ${sidebarCollapsed ? 'justify-center' : 'items-center'} ${activeTab === 'settings' ? 'bg-[#263544] text-[#FF7D2D] border-l-4 border-[#FF7D2D] shadow-md' : ''}`}
+          className={`p-2 rounded-md transition-all duration-300 cursor-pointer flex ${sidebarCollapsed ? 'justify-center' : 'items-center'} ${activeTab === 'settings' ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-md' : 'hover:bg-orange-50 hover:text-orange-600'}`}
           onClick={() => handleTabChange('settings')}
         >
-          <Settings size={16} className={`${sidebarCollapsed ? '' : 'mr-2'}`} />
-          {!sidebarCollapsed && <span className="text-sm">Settings</span>}
+          <Settings size={16} className={`${sidebarCollapsed ? '' : 'mr-2'} ${activeTab === 'settings' ? 'text-white' : 'text-orange-500'}`} />
+          {!sidebarCollapsed && <span className="text-sm">{activeTab === 'settings' ? <span className="font-semibold">Settings</span> : 'Settings'}</span>}
         </li>
       </ul>
 
       <div className={`absolute bottom-4 w-full px-3 ${sidebarCollapsed ? 'text-center' : ''}`}>
         <LogoutButton 
-          className={`flex items-center p-2 rounded-md hover:bg-[#263544] hover:text-[#FF7D2D] w-full transition-all duration-300 ${sidebarCollapsed ? 'justify-center' : ''}`}
+          className={`flex items-center p-2 rounded-md bg-gradient-to-r from-orange-500 to-red-500 text-white hover:from-red-500 hover:to-orange-500 w-full transition-all duration-300 ${sidebarCollapsed ? 'justify-center' : ''}`}
         >
           <LogOut size={16} className={`${sidebarCollapsed ? '' : 'mr-2'}`} />
           {!sidebarCollapsed && <span className="text-sm">Sign Out</span>}

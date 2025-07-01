@@ -47,24 +47,24 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files }) => {
 
   if (!files || files.length === 0) {
     return (
-      <div className="bg-[#1F2B39] rounded-lg border border-gray-700 p-4 my-4">
-        <h3 className="text-lg font-medium text-gray-300 mb-4">File Coverage Heatmap</h3>
-        <p className="text-gray-400 text-center py-8">No file coverage data available</p>
+      <div className="bg-white rounded-lg border border-orange-100 p-4 my-4">
+        <h3 className="text-lg font-medium text-orange-700 mb-4">File Coverage Heatmap</h3>
+        <p className="text-orange-400 text-center py-8">No file coverage data available</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-[#1F2B39] rounded-lg border border-gray-700 p-4 my-4">
+    <div className="bg-white rounded-lg border border-orange-100 p-4 my-4">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium text-gray-300">File Coverage Heatmap</h3>
+        <h3 className="text-lg font-medium text-orange-700">File Coverage Heatmap</h3>
         <div className="w-1/3">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-orange-300" />
             <input
               type="text"
               placeholder="Search files..."
-              className="w-full pl-8 pr-3 py-2 bg-[#263544] text-white rounded-md border border-gray-700 text-sm"
+              className="w-full pl-8 pr-3 py-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200 text-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -73,7 +73,7 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files }) => {
       </div>
       
       {filteredFiles.length === 0 ? (
-        <p className="text-gray-400 text-center py-8">
+        <p className="text-orange-400 text-center py-8">
           {searchQuery ? 'No matching files found' : 'No files to display'}
         </p>
       ) : (
@@ -82,19 +82,19 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files }) => {
             {filteredFiles.map((file) => (
               <div 
                 key={file.file} 
-                className="flex flex-col border border-gray-700 rounded-md overflow-hidden bg-[#263544]"
+                className="flex flex-col border border-orange-100 rounded-md overflow-hidden bg-orange-50"
               >
                 <div className={`w-full h-2 ${getHeatmapColor(file.coverage)}`} />
                 <div className="p-3">
                   <div className="flex justify-between items-center">
-                    <div className="font-mono text-sm text-gray-300 truncate" title={file.file}>
+                    <div className="font-mono text-sm text-orange-900 truncate" title={file.file}>
                       {getFileName(file.file)}
                     </div>
-                    <div className="text-sm font-medium text-[#FF7D2D]">
+                    <div className="text-sm font-medium text-orange-600">
                       {file.coverage.toFixed(1)}%
                     </div>
                   </div>
-                  <div className="text-xs text-gray-500 truncate mt-1" title={file.file}>
+                  <div className="text-xs text-orange-300 truncate mt-1" title={file.file}>
                     {file.file}
                   </div>
                 </div>
@@ -103,7 +103,7 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files }) => {
           </div>
           
           {searchQuery && (
-            <div className="mt-3 text-sm text-gray-400">
+            <div className="mt-3 text-sm text-orange-400">
               Showing {filteredFiles.length} of {files.length} files
             </div>
           )}
