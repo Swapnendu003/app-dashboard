@@ -17,6 +17,7 @@ import (
 type FileCoverage struct {
 	File     string  `json:"file"`
 	Coverage float64 `json:"coverage"`
+	Error    string  `json:"error,omitempty"` 
 }
 type PythonFileStats struct {
 	TotalExecutableLines int
@@ -38,11 +39,11 @@ type PythonProjectType int
 
 const (
 	UnknownProject PythonProjectType = iota
-	PipProject                       
-	PoetryProject                    
-	SetupPyProject                   
-	PipenvProject                    
-	CondaProject                     
+	PipProject
+	PoetryProject
+	SetupPyProject
+	PipenvProject
+	CondaProject
 )
 
 type PythonProjectInfo struct {

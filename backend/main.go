@@ -36,6 +36,10 @@ func main() {
 	r.GET("/coverage/branches", handlers.GetBranchCoverage)
 	r.GET("/coverage/compare", handlers.CompareBranchCoverage)
 	r.GET("/coverage/status/:job_id", handlers.GetCoverageJobStatus)
+	r.GET("/coverage/jobs/active", handlers.ListActiveJobs)
+	r.DELETE("/coverage/jobs/:job_id", handlers.CancelJob)
+	r.GET("/coverage/metrics", handlers.GetCoverageMetrics)
+	r.GET("/coverage/recent-activity", handlers.GetRecentActivity)
 
 	protected := r.Group("/api")
 	protected.Use(middleware.AuthMiddleware())
@@ -60,5 +64,5 @@ func main() {
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
-	
+
 }

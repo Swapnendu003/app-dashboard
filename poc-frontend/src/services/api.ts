@@ -228,6 +228,14 @@ export const getCoverageJobStatus = async (jobId: string) => {
   }
 };
 
+export const getActiveJobs = async () => {
+  return api.get('/coverage/jobs/active');
+};
+
+export const cancelJob = async (jobId: string) => {
+  return api.delete(`/coverage/jobs/${jobId}`);
+};
+
 export const getCoverageHistory = async (repoUrl: string) => {
   return api.get('/coverage/history', { params: { repo_url: repoUrl } });
 };
@@ -252,6 +260,14 @@ export const compareBranchCoverage = async (repoUrl: string, branch1: string, br
   return api.get('/coverage/compare', { 
     params: { repo_url: repoUrl, branch1, branch2 } 
   });
+};
+
+export const getCoverageMetrics = async () => {
+  return api.get('/coverage/metrics');
+};
+
+export const getRecentActivity = async () => {
+  return api.get('/coverage/recent-activity');
 };
 
 export default api;

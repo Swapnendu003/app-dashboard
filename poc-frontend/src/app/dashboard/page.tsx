@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import PageSkeleton from "@/components/PageSkeleton";
 import withAuth from "@/components/withAuth";
-import { getUserProfile, getGitHubContributions, getCoverageTrends } from "@/services/api";
+import { getUserProfile, getGitHubContributions, getCoverageTrends, getCoverageMetrics } from "@/services/api";
 import { AlertCircle, Loader2, ChevronDown, Calendar, Info, Clipboard, BarChart2, LineChart, Code2, PieChart } from 'lucide-react';
 import ActivityGraph from "@/components/ActivityGraph";
 import { CoverageHistoryChart } from "@/components/CoverageVisualizations";
@@ -16,9 +16,9 @@ const DashboardPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState({
     repositories: 0,
-    totalTests: 0,
+    totalScans: 0,
     passRate: 0,
-    testsLast7Days: 0
+    recentScans: 0
   });
   const [activityData, setActivityData] = useState<any>({
     dailyActivities: [],
@@ -50,22 +50,24 @@ const DashboardPage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const userResponse = await getUserProfile();
+        const [userResponse, metricsResponse] = await Promise.all([
+          getUserProfile(),
+          getCoverageMetrics()
+        ]);
+        
         setUser(userResponse.data.user || {});
-        // Store username in sessionStorage for later use
         if (userResponse.data.user?.username) {
           sessionStorage.setItem('github_username', userResponse.data.user.username);
         }
-        // Fetch GitHub contributions data for initial year
-        await fetchGithubContributions(userResponse.data.user?.username, selectedYear);
-        
+
         setMetrics({
-          repositories: 12,
-          totalTests: 256,
-          passRate: 87,
-          testsLast7Days: 45
+          repositories: metricsResponse.data.repositories,
+          totalScans: metricsResponse.data.total_scans,
+          passRate: metricsResponse.data.pass_rate,
+          recentScans: metricsResponse.data.recent_scans
         });
-        
+
+        await fetchGithubContributions(userResponse.data.user?.username, selectedYear);
         setError(null);
       } catch (err: any) {
         console.error('Error fetching dashboard data:', err);
@@ -203,15 +205,18 @@ const DashboardPage = () => {
           </div>
         ) : (
           <>
-            {/* Welcome message */}
             <div className="bg-gradient-to-r from-orange-100 to-orange-50 rounded-lg p-6 mb-8 border-l-4 border-orange-400">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">Welcome back, {user?.name || 'User'}!</h2>
-              <p className="text-gray-700">Here's a summary of your GitHub API activity</p>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Welcome, {user?.name || 'Developer'}!
+              </h2>
+              <p className="text-gray-700">
+                Your personalized dashboard for repository insights and code coverage trends.
+              </p>
             </div>
             
             {/* Metrics cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="bg-gradient-to-br from-orange-100 to-orange-50 rounded-lg shadow p-6 border border-orange-200 hover:border-orange-400 transition-colors duration-300">
+              <div className="bg-gradient-to-br from-orange-100 to-orange-50 rounded-lg shadow p-6 border border-orange-200">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-semibold text-orange-700">Repositories</h2>
                   <Info className="h-6 w-6 text-orange-500" />
@@ -220,30 +225,30 @@ const DashboardPage = () => {
                 <p className="text-sm text-orange-400 mt-2">Connected repos</p>
               </div>
               
-              <div className="bg-gradient-to-br from-orange-50 via-orange-100 to-orange-50 rounded-lg shadow p-6 border border-orange-100 hover:border-orange-400 transition-colors duration-300">
+              <div className="bg-gradient-to-br from-orange-50 via-orange-100 to-orange-50 rounded-lg shadow p-6 border border-orange-100">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-semibold text-orange-700">Total Tests</h2>
+                  <h2 className="text-lg font-semibold text-orange-700">Total Scans</h2>
                   <Clipboard className="h-6 w-6 text-orange-500" />
                 </div>
-                <p className="text-3xl font-bold text-orange-500">{metrics.totalTests}</p>
-                <p className="text-sm text-orange-400 mt-2">API tests run</p>
+                <p className="text-3xl font-bold text-orange-500">{metrics.totalScans}</p>
+                <p className="text-sm text-orange-400 mt-2">Coverage scans</p>
               </div>
               
-              <div className="bg-gradient-to-br from-orange-50 via-orange-200 to-orange-50 rounded-lg shadow p-6 border border-orange-100 hover:border-orange-400 transition-colors duration-300">
+              <div className="bg-gradient-to-br from-orange-50 via-orange-200 to-orange-50 rounded-lg shadow p-6 border border-orange-100">
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-semibold text-orange-700">Pass Rate</h2>
                   <BarChart2 className="h-6 w-6 text-orange-500" />
                 </div>
-                <p className="text-3xl font-bold text-orange-500">{metrics.passRate}%</p>
-                <p className="text-sm text-orange-400 mt-2">Success rate</p>
+                <p className="text-3xl font-bold text-orange-500">{metrics.passRate.toFixed(1)}%</p>
+                <p className="text-sm text-orange-400 mt-2">Average coverage</p>
               </div>
               
-              <div className="bg-gradient-to-br from-[#ffedd5] via-[#fdba74] to-[#f97316] rounded-lg shadow p-6 border border-orange-300 hover:border-orange-400 transition-colors duration-300">
+              <div className="bg-gradient-to-br from-[#ffedd5] via-[#fdba74] to-[#f97316] rounded-lg shadow p-6 border border-orange-300">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-semibold text-orange-700">Recent Tests</h2>
+                  <h2 className="text-lg font-semibold text-orange-700">Recent Scans</h2>
                   <LineChart className="h-6 w-6 text-orange-500" />
                 </div>
-                <p className="text-3xl font-bold text-orange-500">{metrics.testsLast7Days}</p>
+                <p className="text-3xl font-bold text-orange-500">{metrics.recentScans}</p>
                 <p className="text-sm text-orange-400 mt-2">Last 7 days</p>
               </div>
 

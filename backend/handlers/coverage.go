@@ -11,10 +11,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/yourusername/backend/config"
 	"github.com/yourusername/backend/models"
@@ -38,6 +40,7 @@ type CoverageAsyncRequest struct {
 type FileCoverage struct {
 	File     string  `json:"file"`
 	Coverage float64 `json:"coverage"`
+	Error    string  `json:"error,omitempty"` // New field to store file-specific errors
 }
 
 type CoverageResponse struct {
@@ -51,20 +54,20 @@ type CoverageResponse struct {
 }
 
 type JobStatus struct {
-	JobID     string    `json:"job_id"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	ResultID  string    `json:"result_id,omitempty"`
-	Error     string    `json:"error,omitempty"`
-}
-
-type FileStats struct {
-	TotalExecutableLines int
-	CoveredLines         int
+	ID         string     `json:"id"`
+	JobType    string     `json:"job_type"`
+	Status     string     `json:"status"`
+	StartTime  time.Time  `json:"start_time"`
+	EndTime    *time.Time `json:"end_time,omitempty"`
+	ResultID   string     `json:"result_id,omitempty"`
+	Error      string     `json:"error,omitempty"`
+	Repository string     `json:"repository"`
+	Branch     string     `json:"branch,omitempty"`
+	Progress   int        `json:"progress"`
 }
 
 var completedJobs = make(map[string]*JobStatus)
+var activeJobs = make(map[string]*JobStatus)
 var jobsMutex sync.RWMutex
 
 // Checks if a job is complete
@@ -83,14 +86,34 @@ func markJobComplete(jobID string, status string, resultID string, err string) {
 	jobsMutex.Lock()
 	defer jobsMutex.Unlock()
 
+	// Update the job status in the active jobs map first
+	if job, exists := activeJobs[jobID]; exists {
+		job.Status = status
+		now := time.Now()
+		job.EndTime = &now
+		job.ResultID = resultID
+		job.Error = err
+		job.Progress = 100
+
+		// Remove from active jobs after a short delay to allow final status to be visible
+		go func(id string) {
+			time.Sleep(5 * time.Minute)
+			jobsMutex.Lock()
+			delete(activeJobs, id)
+			jobsMutex.Unlock()
+		}(jobID)
+	}
+
+	// Also maintain the completed jobs cache for quick lookups
 	completedJobs[jobID] = &JobStatus{
-		JobID:     jobID,
+		ID:        jobID,
 		Status:    status,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		StartTime: time.Now(),
+		EndTime:   nil,
 		ResultID:  resultID,
 		Error:     err,
 	}
+
 	go func(id string) {
 		time.Sleep(30 * time.Minute)
 		jobsMutex.Lock()
@@ -123,13 +146,17 @@ func RunCoverageScan(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		now := time.Now()
 		jobDoc := bson.M{
 			"job_id":     jobID,
 			"repository": req.RepoURL,
 			"branch":     req.Branch,
 			"status":     "in_progress",
-			"created_at": time.Now(),
-			"updated_at": time.Now(),
+			"created_at": now,
+			"updated_at": now,
+			"job_type":   "coverage_scan",
+			"start_time": now,
+			"progress":   0,
 		}
 
 		_, err = collection.InsertOne(ctx, jobDoc)
@@ -138,6 +165,20 @@ func RunCoverageScan(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create job"})
 			return
 		}
+
+		// Add to active jobs map
+		jobsMutex.Lock()
+		activeJobs[jobID] = &JobStatus{
+			ID:         jobID,
+			JobType:    "coverage_scan",
+			Status:     "in_progress",
+			StartTime:  now,
+			Repository: req.RepoURL,
+			Branch:     req.Branch,
+			Progress:   0,
+		}
+		jobsMutex.Unlock()
+
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
@@ -150,7 +191,29 @@ func RunCoverageScan(c *gin.Context) {
 				RepoURL: req.RepoURL,
 				Branch:  req.Branch,
 			}
+
+			// Update progress at intervals
+			progressDone := make(chan bool)
+			go func() {
+				ticker := time.NewTicker(5 * time.Second)
+				defer ticker.Stop()
+				progress := 10
+				for {
+					select {
+					case <-progressDone:
+						return
+					case <-ticker.C:
+						if progress < 90 {
+							progress += 5
+							updateJobProgress(jobID, progress)
+						}
+					}
+				}
+			}()
+
 			resp, err := scanCoverage(coverageReq, true)
+
+			close(progressDone)
 
 			if err != nil {
 				log.Printf("ERROR: Async coverage scan failed: %v", err)
@@ -189,11 +252,17 @@ func updateJobStatus(jobID, status, resultID, errorMsg string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	now := time.Now()
 	update := bson.M{
 		"$set": bson.M{
 			"status":     status,
-			"updated_at": time.Now(),
+			"updated_at": now,
 		},
+	}
+
+	if status == "completed" || status == "failed" {
+		update["$set"].(bson.M)["end_time"] = now
+		update["$set"].(bson.M)["progress"] = 100
 	}
 
 	if resultID != "" {
@@ -213,6 +282,194 @@ func updateJobStatus(jobID, status, resultID, errorMsg string) {
 			markJobComplete(jobID, status, resultID, errorMsg)
 		}
 	}
+
+	// Also update the in-memory job status
+	jobsMutex.Lock()
+	if job, exists := activeJobs[jobID]; exists {
+		job.Status = status
+		if status == "completed" || status == "failed" {
+			endTime := time.Now()
+			job.EndTime = &endTime
+			job.Progress = 100
+		}
+		if resultID != "" {
+			job.ResultID = resultID
+		}
+		if errorMsg != "" {
+			job.Error = errorMsg
+		}
+	}
+	jobsMutex.Unlock()
+}
+
+// New function to update job progress
+func updateJobProgress(jobID string, progress int) {
+	db, err := config.ConnectDB()
+	if err != nil {
+		log.Printf("ERROR: Failed to connect to database to update job progress: %v", err)
+		return
+	}
+
+	collection := db.Collection("coverage_jobs")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$set": bson.M{
+			"progress":   progress,
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err = collection.UpdateOne(ctx, bson.M{"job_id": jobID}, update)
+	if err != nil {
+		log.Printf("ERROR: Failed to update job progress in database: %v", err)
+	}
+	jobsMutex.Lock()
+	if job, exists := activeJobs[jobID]; exists {
+		job.Progress = progress
+	}
+	jobsMutex.Unlock()
+}
+
+// New function to list active jobs
+func ListActiveJobs(c *gin.Context) {
+	jobsMutex.RLock()
+	jobs := make([]*JobStatus, 0, len(activeJobs))
+	for _, job := range activeJobs {
+		jobs = append(jobs, job)
+	}
+	jobsMutex.RUnlock()
+
+	db, err := config.ConnectDB()
+	if err != nil {
+		log.Printf("ERROR: Failed to connect to database: %v", err)
+		c.JSON(http.StatusOK, jobs) 
+		return
+	}
+
+	collection := db.Collection("coverage_jobs")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	oneHourAgo := time.Now().Add(-1 * time.Hour)
+
+	filter := bson.M{
+		"$or": []bson.M{
+			{"status": "in_progress"},
+			{"updated_at": bson.M{"$gt": oneHourAgo}},
+		},
+	}
+
+	cursor, err := collection.Find(ctx, filter)
+	if err != nil {
+		log.Printf("ERROR: Failed to query jobs: %v", err)
+		c.JSON(http.StatusOK, jobs) 
+		return
+	}
+	defer cursor.Close(ctx)
+
+	var dbJobs []struct {
+		JobID      string     `bson:"job_id"`
+		JobType    string     `bson:"job_type"`
+		Status     string     `bson:"status"`
+		StartTime  time.Time  `bson:"start_time"`
+		EndTime    *time.Time `bson:"end_time"`
+		Repository string     `bson:"repository"`
+		Branch     string     `bson:"branch"`
+		Progress   int        `bson:"progress"`
+		ResultID   string     `bson:"result_id"`
+		Error      string     `bson:"error"`
+	}
+
+	if err := cursor.All(ctx, &dbJobs); err != nil {
+		log.Printf("ERROR: Failed to decode jobs: %v", err)
+		c.JSON(http.StatusOK, jobs) // Return what we have in memory
+		return
+	}
+	jobMap := make(map[string]bool)
+	for _, job := range jobs {
+		jobMap[job.ID] = true
+	}
+
+	for _, dbJob := range dbJobs {
+		if !jobMap[dbJob.JobID] {
+			jobs = append(jobs, &JobStatus{
+				ID:         dbJob.JobID,
+				JobType:    dbJob.JobType,
+				Status:     dbJob.Status,
+				StartTime:  dbJob.StartTime,
+				EndTime:    dbJob.EndTime,
+				Repository: dbJob.Repository,
+				Branch:     dbJob.Branch,
+				Progress:   dbJob.Progress,
+				ResultID:   dbJob.ResultID,
+				Error:      dbJob.Error,
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, jobs)
+}
+
+// New function to cancel a job
+func CancelJob(c *gin.Context) {
+	jobID := c.Param("job_id")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Job ID is required"})
+		return
+	}
+
+	var jobExists bool
+	jobsMutex.RLock()
+	job, exists := activeJobs[jobID]
+	jobExists = exists
+	jobsMutex.RUnlock()
+
+	if !jobExists {
+		db, err := config.ConnectDB()
+		if err != nil {
+			log.Printf("ERROR: Failed to connect to database: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database connection failed"})
+			return
+		}
+
+		collection := db.Collection("coverage_jobs")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		var dbJob struct {
+			Status string `bson:"status"`
+		}
+
+		err = collection.FindOne(ctx, bson.M{"job_id": jobID}).Decode(&dbJob)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check job"})
+			}
+			return
+		}
+
+		if dbJob.Status != "in_progress" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Can only cancel jobs that are in progress"})
+			return
+		}
+
+		jobExists = true
+	} else if job.Status != "in_progress" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Can only cancel jobs that are in progress"})
+		return
+	}
+
+	if jobExists {
+		updateJobStatus(jobID, "failed", "", "Job cancelled by user")
+		c.JSON(http.StatusOK, gin.H{"message": "Job cancelled successfully"})
+		return
+	}
+
+	c.JSON(http.StatusNotFound, gin.H{"error": "Job not found"})
 }
 
 // Checks if a file exists and is not a directory
@@ -240,157 +497,174 @@ func hasGoFiles(dir string) bool {
 // Detects Go modules and packages in a directory
 func detectGoStructure(dir string, logPrefix string) ([]string, error) {
 	log.Printf("INFO: %s Fast Go project structure analysis", logPrefix)
-	
-	// Check root first for go.mod - most common case
 	if fileExists(filepath.Join(dir, "go.mod")) {
 		log.Printf("INFO: %s Found go.mod in root, using single module approach", logPrefix)
 		return []string{dir}, nil
 	}
-	
-	// Quick scan for Go files in root
+
 	if hasGoFiles(dir) {
 		log.Printf("INFO: %s Found Go files in root without go.mod", logPrefix)
 		return []string{dir}, nil
 	}
-	
-	// Only scan subdirectories if root doesn't have Go code
+
 	var goModules []string
 	var goPackages []string
-	maxDepth := 3 // Limit search depth for performance
-	
+	maxDepth := 3 
+
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		
-		// Calculate depth and skip if too deep
+
 		relPath, _ := filepath.Rel(dir, path)
 		depth := strings.Count(relPath, string(filepath.Separator))
 		if depth > maxDepth {
 			return filepath.SkipDir
 		}
-		
+
 		if info.IsDir() {
 			name := info.Name()
-			// Skip common non-Go directories early
-			if strings.HasPrefix(name, ".") || 
-			   name == "vendor" || 
-			   name == "node_modules" ||
-			   name == "build" ||
-			   name == "dist" ||
-			   name == "target" ||
-			   name == "docs" ||
-			   name == "examples" {
+
+			if strings.HasPrefix(name, ".") ||
+				name == "vendor" ||
+				name == "node_modules" ||
+				name == "build" ||
+				name == "dist" ||
+				name == "target" ||
+				name == "docs" ||
+				name == "test" ||
+				name == "tests" ||
+				name == "examples" {
 				return filepath.SkipDir
 			}
 		}
-		
+
 		if info.Name() == "go.mod" {
 			moduleDir := filepath.Dir(path)
 			goModules = append(goModules, moduleDir)
 			log.Printf("INFO: %s Found Go module at: %s", logPrefix, moduleDir)
 		}
-		
+
 		if info.IsDir() && path != dir && hasGoFiles(path) {
 			goPackages = append(goPackages, path)
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil {
 		log.Printf("WARNING: %s Error walking directory: %v", logPrefix, err)
 	}
-	
-	// Prioritize modules over packages
+
 	if len(goModules) > 0 {
 		return goModules, nil
 	}
-	
+
 	if len(goPackages) > 0 {
 		return goPackages, nil
 	}
-	
+
 	return nil, errors.New("no Go code found")
 }
 
-
 func runGoModuleCoverage(dir string, logPrefix string) (float64, []FileCoverage, error) {
 	log.Printf("INFO: %s Running optimized Go coverage in: %s", logPrefix, dir)
-	
+
 	hasGoMod := fileExists(filepath.Join(dir, "go.mod"))
 	coverageFile := filepath.Join(dir, "coverage.out")
-	os.Remove(coverageFile) // Clean up any existing file
-	
-	// Create context with timeout to prevent hanging
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute) // Reduced timeout
+	os.Remove(coverageFile) 
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	
+
 	var cmd *exec.Cmd
-	
-	// Use the most likely to succeed command first based on project structure
+
 	if hasGoMod {
-		// For modules, start with the most common successful pattern
+
 		cmd = exec.CommandContext(ctx, "go", "test", "-coverprofile=coverage.out", "-covermode=count", "./...")
 	} else {
 		cmd = exec.CommandContext(ctx, "go", "test", "-coverprofile=coverage.out", "-covermode=count", ".")
 	}
-	
+
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
 		"GO111MODULE=on",
 		"CGO_ENABLED=0",
-		"GOCACHE="+filepath.Join(os.TempDir(), "gocache"), // Use temp cache to avoid conflicts
+		"GOCACHE="+filepath.Join(os.TempDir(), "gocache"), 
 	)
-	
+
 	output, err := cmd.CombinedOutput()
-	
-	// If main command fails, try one quick fallback
+	fileErrors := make(map[string]string)
+
 	if err != nil {
-		log.Printf("WARNING: %s Primary coverage command failed, trying fallback: %v", logPrefix, err)
-		
-		// Single fallback attempt with set mode (faster)
-		var fallbackCmd *exec.Cmd
-		if hasGoMod {
-			fallbackCmd = exec.CommandContext(ctx, "go", "test", "-coverprofile=coverage.out", "-covermode=set", "./...")
-		} else {
-			fallbackCmd = exec.CommandContext(ctx, "go", "test", "-coverprofile=coverage.out", "-covermode=set", ".")
-		}
-		
-		fallbackCmd.Dir = dir
-		fallbackCmd.Env = cmd.Env
-		
-		output, err = fallbackCmd.CombinedOutput()
-		if err != nil {
-			log.Printf("WARNING: %s Fallback also failed: %v", logPrefix, err)
+		outputStr := string(output)
+		lines := strings.Split(outputStr, "\n")
+		errorFile := filepath.Join(dir, "coverage.out.error")
+		os.WriteFile(errorFile, output, 0644)
+
+		for _, line := range lines {
+			if match := extractFileErrorFromLine(line); match != nil {
+				fileErrors[match.filename] = match.errorMsg
+				log.Printf("INFO: %s File error detected: %s - %s",
+					logPrefix, match.filename, match.errorMsg)
+			}
 		}
 	}
-	
-	// Check if coverage file was created
+
+	if err != nil {
+		log.Printf("WARNING: %s Primary coverage command failed, trying fallbacks: %v", logPrefix, err)
+		fallbackCommands := [][]string{
+			{"go", "test", "-coverprofile=coverage.out", "-covermode=set", "./..."},
+			{"go", "test", "-coverprofile=coverage.out", "-covermode=atomic", "./..."},
+			{"go", "test", "-coverprofile=coverage.out", "-covermode=count", "."},
+			{"go", "test", "-coverprofile=coverage.out", "-covermode=set", "."},
+			{"go", "test", "-v", "-coverprofile=coverage.out", "./..."},
+			{"go", "test", "-short", "-coverprofile=coverage.out", "./..."},
+		}
+
+		for _, cmdArgs := range fallbackCommands {
+			if hasGoMod || !strings.Contains(cmdArgs[len(cmdArgs)-1], "./...") {
+				log.Printf("INFO: %s Trying fallback command: %s", logPrefix, strings.Join(cmdArgs, " "))
+				fallbackCmd := exec.CommandContext(ctx, cmdArgs[0], cmdArgs[1:]...)
+				fallbackCmd.Dir = dir
+				fallbackCmd.Env = cmd.Env
+
+				output, err = fallbackCmd.CombinedOutput()
+				if err == nil || fileExists(coverageFile) {
+					log.Printf("INFO: %s Fallback command succeeded", logPrefix)
+					break
+				}
+			}
+		}
+	}
+
 	if fileExists(coverageFile) {
 		log.Printf("INFO: %s Coverage file created, parsing results", logPrefix)
-		
+
 		// Try go tool cover first (faster and more reliable)
 		if coverageData, parseErr := parseWithGoToolCover(coverageFile, dir); parseErr == nil && coverageData.TotalCoverage >= 0 {
 			log.Printf("INFO: %s Successfully parsed coverage using go tool cover: %.2f%%", logPrefix, coverageData.TotalCoverage)
 			os.Remove(coverageFile)
 			return coverageData.TotalCoverage, coverageData.Files, nil
 		}
-		
-		// Fallback to manual parsing
+
 		coverageData, parseErr := parseCoverageFile(coverageFile)
 		if parseErr != nil {
 			log.Printf("ERROR: %s Failed to parse coverage file: %v", logPrefix, parseErr)
 			os.Remove(coverageFile)
 			return 0.0, []FileCoverage{}, parseErr
 		}
-		
+		for i := range coverageData.Files {
+			if errorMsg, exists := fileErrors[coverageData.Files[i].File]; exists {
+				coverageData.Files[i].Error = errorMsg
+			}
+		}
+
 		os.Remove(coverageFile)
 		log.Printf("INFO: %s Successfully parsed coverage manually: %.2f%%", logPrefix, coverageData.TotalCoverage)
 		return coverageData.TotalCoverage, coverageData.Files, nil
 	}
-	
-	// Quick check for coverage in output
+
 	if strings.Contains(string(output), "coverage:") {
 		coverage := parseSimpleCoverageOutput(string(output))
 		if coverage > 0 {
@@ -398,105 +672,184 @@ func runGoModuleCoverage(dir string, logPrefix string) (float64, []FileCoverage,
 			return coverage, []FileCoverage{}, nil
 		}
 	}
-	
+
 	return 0.0, []FileCoverage{}, err
 }
 
 func processGoDirectoriesInParallel(goDirectories []string, tmpDir string, logPrefix string) (CoverageResponse, bool) {
 	log.Printf("INFO: %s Processing %d Go directories in parallel", logPrefix, len(goDirectories))
-	
+
 	type CoverageResult struct {
-		Coverage float64
-		Files    []FileCoverage
-		Error    error
-		Dir      string
+		Coverage   float64
+		Files      []FileCoverage
+		Error      error
+		Dir        string
+		Success    bool
+		FileErrors map[string]string // Track file-specific errors
 	}
-	
-	// Limit concurrency to prevent resource exhaustion
-	maxWorkers := min(len(goDirectories), 3) // Conservative limit
+
+	maxWorkers := min(len(goDirectories), runtime.NumCPU())
+	log.Printf("INFO: %s Using %d workers for parallel processing", logPrefix, maxWorkers)
+
 	resultsChan := make(chan CoverageResult, len(goDirectories))
 	semaphore := make(chan struct{}, maxWorkers)
-	
+
 	var wg sync.WaitGroup
-	
+
 	for _, dir := range goDirectories {
 		wg.Add(1)
 		go func(directory string) {
 			defer wg.Done()
-			semaphore <- struct{}{} // Acquire
-			defer func() { <-semaphore }() // Release
-			
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
 			relPath, _ := filepath.Rel(tmpDir, directory)
 			if relPath == "." {
 				relPath = "root"
 			}
-			
+
 			coverage, files, err := runGoModuleCoverage(directory, logPrefix)
-			resultsChan <- CoverageResult{
-				Coverage: coverage,
-				Files:    files,
-				Error:    err,
-				Dir:      relPath,
+			fileErrors := make(map[string]string)
+
+			if err != nil {
+				if errOutput, ok := err.(error); ok {
+					errLines := strings.Split(errOutput.Error(), "\n")
+					for _, line := range errLines {
+						if fileMatch := extractFileErrorFromLine(line); fileMatch != nil {
+							fileErrors[fileMatch.filename] = fileMatch.errorMsg
+							log.Printf("INFO: %s Recorded error for file %s: %s",
+								logPrefix, fileMatch.filename, fileMatch.errorMsg)
+						}
+					}
+				}
 			}
+
+			if err != nil || coverage <= 0 {
+				log.Printf("INFO: %s Primary coverage method failed for %s, trying fallbacks", logPrefix, relPath)
+
+				var fallbackMethods = []struct {
+					name string
+					fn   func(string) (CoverageResponse, error)
+				}{
+					{"fallbackCoverage", fallbackCoverage},
+					{"fallbackGocov", fallbackGocov},
+					{"fallbackGocover", fallbackGocover},
+				}
+
+				for _, method := range fallbackMethods {
+					log.Printf("INFO: %s Trying %s fallback for %s", logPrefix, method.name, relPath)
+					if resp, fallbackErr := method.fn(directory); fallbackErr == nil && resp.TotalCoverage > 0 {
+						log.Printf("INFO: %s %s fallback succeeded for %s with %.2f%% coverage",
+							logPrefix, method.name, relPath, resp.TotalCoverage)
+
+						for i := range resp.Files {
+							if errorMsg, exists := fileErrors[resp.Files[i].File]; exists {
+								resp.Files[i].Error = errorMsg
+							}
+						}
+
+						resultsChan <- CoverageResult{
+							Coverage:   resp.TotalCoverage,
+							Files:      resp.Files,
+							Error:      nil,
+							Dir:        relPath,
+							Success:    true,
+							FileErrors: fileErrors,
+						}
+						return
+					}
+				}
+
+				resultsChan <- CoverageResult{
+					Coverage:   0,
+					Files:      []FileCoverage{},
+					Error:      fmt.Errorf("all coverage methods failed for %s", relPath),
+					Dir:        relPath,
+					Success:    false,
+					FileErrors: fileErrors,
+				}
+				return
+			}
+
+			for i := range files {
+				if errorMsg, exists := fileErrors[files[i].File]; exists {
+					files[i].Error = errorMsg
+				}
+			}
+
+			resultsChan <- CoverageResult{
+				Coverage:   coverage,
+				Files:      files,
+				Error:      nil,
+				Dir:        relPath,
+				Success:    true,
+				FileErrors: fileErrors,
+			}
+
 		}(dir)
 	}
-	
-	// Close channel when all workers complete
+
 	go func() {
 		wg.Wait()
 		close(resultsChan)
 	}()
-	
-	// Collect results
+
 	var allFiles []FileCoverage
 	var totalCoverage float64
 	var validResults int
-	
+	var successfulDirs []string
+
 	for result := range resultsChan {
-		if result.Error != nil {
+		if !result.Success {
 			log.Printf("WARNING: %s Failed to get coverage for %s: %v", logPrefix, result.Dir, result.Error)
 			continue
 		}
-		
-		if result.Coverage <= 0 {
-			continue
-		}
-		
+
 		log.Printf("INFO: %s Got %.2f%% coverage from %s", logPrefix, result.Coverage, result.Dir)
 		totalCoverage += result.Coverage
 		validResults++
-		
-		// Prefix file paths with directory name if not root
+		successfulDirs = append(successfulDirs, result.Dir)
+
 		if result.Dir != "root" {
 			for i := range result.Files {
-				result.Files[i].File = filepath.Join(result.Dir, result.Files[i].File)
+				filePath := filepath.Join(result.Dir, result.Files[i].File)
+				result.Files[i].File = filePath
+				if errorMsg, exists := result.FileErrors[filePath]; exists && result.Files[i].Error == "" {
+					result.Files[i].Error = errorMsg
+				}
+			}
+		} else {
+			for i := range result.Files {
+				if errorMsg, exists := result.FileErrors[result.Files[i].File]; exists && result.Files[i].Error == "" {
+					result.Files[i].Error = errorMsg
+				}
 			}
 		}
+
 		allFiles = append(allFiles, result.Files...)
 	}
-	
+
 	if validResults > 0 {
 		finalCoverage := totalCoverage / float64(validResults)
-		log.Printf("INFO: %s Calculated average coverage: %.2f%% from %d directories",
-			logPrefix, finalCoverage, validResults)
-		
+		log.Printf("INFO: %s Calculated average coverage: %.2f%% from %d directories: %v",
+			logPrefix, finalCoverage, validResults, successfulDirs)
+
 		return CoverageResponse{
 			TotalCoverage: finalCoverage,
 			Files:         allFiles,
 		}, true
 	}
-	
+
 	return CoverageResponse{}, false
 }
-
 
 // Detects project type based on files present
 func parseSimpleCoverageOutput(output string) float64 {
 	patterns := []string{
-		`coverage:\s*([0-9]+(?:\.[0-9]+)?)%`,       
-		`Total coverage:\s*([0-9]+(?:\.[0-9]+)?)%`, 
-		`TOTAL.*?([0-9]+(?:\.[0-9]+)?)%`,          
-		`([0-9]+(?:\.[0-9]+)?)%\s+of\s+statements`, 
+		`coverage:\s*([0-9]+(?:\.[0-9]+)?)%`,
+		`Total coverage:\s*([0-9]+(?:\.[0-9]+)?)%`,
+		`TOTAL.*?([0-9]+(?:\.[0-9]+)?)%`,
+		`([0-9]+(?:\.[0-9]+)?)%\s+of\s+statements`,
 	}
 
 	for _, pattern := range patterns {
@@ -579,6 +932,12 @@ func fallbackGocover(dir string) (CoverageResponse, error) {
 	return CoverageResponse{TotalCoverage: 0.0, Files: []FileCoverage{}}, nil
 }
 
+// FileStats holds coverage statistics for a single file
+type FileStats struct {
+	TotalExecutableLines int
+	CoveredLines         int
+}
+
 func parseCoverageFile(path string) (CoverageResponse, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -611,7 +970,7 @@ func parseCoverageFile(path string) (CoverageResponse, error) {
 		}
 
 		lineCount++
-		
+
 		parts := strings.Fields(line)
 		if len(parts) < 3 {
 			log.Printf("WARNING: Skipping malformed coverage line: %s", line)
@@ -667,6 +1026,19 @@ func parseCoverageFile(path string) (CoverageResponse, error) {
 		totalCoverage = float64(totalCoveredLines) * 100.0 / float64(totalExecutableLines)
 	}
 	files := make([]FileCoverage, 0, len(fileData))
+	fileErrors := make(map[string]string)
+
+	// Try to find error lines in the coverage file
+	errorContent, _ := os.ReadFile(path + ".error")
+	if len(errorContent) > 0 {
+		lines := strings.Split(string(errorContent), "\n")
+		for _, line := range lines {
+			if match := extractFileErrorFromLine(line); match != nil {
+				fileErrors[match.filename] = match.errorMsg
+			}
+		}
+	}
+
 	for filename, stats := range fileData {
 		fileCoverage := 0.0
 		if stats.TotalExecutableLines > 0 {
@@ -674,10 +1046,18 @@ func parseCoverageFile(path string) (CoverageResponse, error) {
 		}
 		cleanFilename := cleanupFilename(filename)
 
-		files = append(files, FileCoverage{
+		fileCov := FileCoverage{
 			File:     cleanFilename,
 			Coverage: fileCoverage,
-		})
+		}
+
+		// Add error if one was found for this file
+		if errorMsg, exists := fileErrors[cleanFilename]; exists {
+			fileCov.Error = errorMsg
+		}
+
+		files = append(files, fileCov)
+
 		if len(files) <= 5 {
 			log.Printf("DEBUG: File %s - Executable: %d, Covered: %d, Coverage: %.2f%%",
 				cleanFilename, stats.TotalExecutableLines, stats.CoveredLines, fileCoverage)
@@ -692,7 +1072,6 @@ func parseCoverageFile(path string) (CoverageResponse, error) {
 		Files:         files,
 	}, nil
 }
-
 
 // Parses coverage.out using 'go tool cover -func'
 func parseWithGoToolCover(coverageFile string, dir string) (CoverageResponse, error) {
@@ -720,7 +1099,7 @@ func parseWithGoToolCover(coverageFile string, dir string) (CoverageResponse, er
 		if strings.HasPrefix(line, "total:") {
 			fields := strings.Fields(line)
 			if len(fields) >= 3 {
-		
+
 				coverageStr := strings.TrimSuffix(fields[2], "%")
 				if coverage, err := strconv.ParseFloat(coverageStr, 64); err == nil {
 					totalCoverage = coverage
@@ -741,7 +1120,7 @@ func parseWithGoToolCover(coverageFile string, dir string) (CoverageResponse, er
 						fileData[cleanFilename] = &FileStats{}
 					}
 					fileData[cleanFilename].CoveredLines += int(coverage)
-					fileData[cleanFilename].TotalExecutableLines += 100 
+					fileData[cleanFilename].TotalExecutableLines += 100
 				}
 			}
 		}
@@ -777,43 +1156,62 @@ func cleanupFilename(filename string) string {
 	return filename
 }
 
-// Checks if a directory contains any Go files
-func dirContainsGoFiles(dir string) bool {
-	goFiles, err := filepath.Glob(filepath.Join(dir, "*.go"))
-	if err != nil {
-		log.Printf("ERROR: Failed to check for Go files in %s: %v", dir, err)
-		return false
-	}
-	return len(goFiles) > 0
-}
-
-// Finds all directories containing Go code
 func findGoCodeDirs(baseDir string, logPrefix string) []string {
 	log.Printf("INFO: %s Searching for Go code in subdirectories", logPrefix)
 	var goDirs []string
+	visited := make(map[string]bool)
+
+	// First check if root has Go files
 	if dirContainsGoFiles(baseDir) || fileExists(filepath.Join(baseDir, "go.mod")) {
 		goDirs = append(goDirs, baseDir)
+		visited[baseDir] = true
 		log.Printf("INFO: %s Found Go code in root directory", logPrefix)
 	}
+
 	err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-	
-		if info.IsDir() && info.Name() == ".git" {
-			return filepath.SkipDir
+
+		if visited[path] {
+			return nil
 		}
+
+		if info.IsDir() {
+			dirName := filepath.Base(path)
+			if dirName == ".git" ||
+				dirName == "vendor" ||
+				dirName == "node_modules" ||
+				dirName == "build" ||
+				dirName == "dist" ||
+				strings.HasPrefix(dirName, ".") {
+				return filepath.SkipDir
+			}
+		}
+
 		if path == baseDir {
 			return nil
 		}
 
-		if info.IsDir() &&
-			(dirContainsGoFiles(path) || fileExists(filepath.Join(path, "go.mod"))) {
-			if !strings.Contains(path, "/vendor/") &&
-				!strings.Contains(path, "/build/") &&
-				!strings.HasPrefix(filepath.Base(path), ".") {
-				goDirs = append(goDirs, path)
-				log.Printf("INFO: %s Found Go code in directory: %s", logPrefix, path)
+		if info.IsDir() {
+			hasGoFiles := false
+			if files, err := filepath.Glob(filepath.Join(path, "*.go")); err == nil && len(files) > 0 {
+				for _, file := range files {
+					if !strings.HasSuffix(file, "_test.go") {
+						hasGoFiles = true
+						break
+					}
+				}
+			}
+
+			if hasGoFiles || fileExists(filepath.Join(path, "go.mod")) {
+				if !strings.Contains(path, "/vendor/") &&
+					!strings.Contains(path, "/build/") &&
+					!strings.HasPrefix(filepath.Base(path), ".") {
+					goDirs = append(goDirs, path)
+					visited[path] = true
+					log.Printf("INFO: %s Found Go code in directory: %s", logPrefix, path)
+				}
 			}
 		}
 		return nil
@@ -823,7 +1221,60 @@ func findGoCodeDirs(baseDir string, logPrefix string) []string {
 		log.Printf("WARNING: %s Error while walking directories: %v", logPrefix, err)
 	}
 
-	return goDirs
+	uniqueDirs := make([]string, 0, len(goDirs))
+	seen := make(map[string]bool)
+
+	for _, dir := range goDirs {
+		if !seen[dir] {
+			seen[dir] = true
+			uniqueDirs = append(uniqueDirs, dir)
+		}
+	}
+
+	log.Printf("INFO: %s Total unique Go directories found: %d", logPrefix, len(uniqueDirs))
+	return uniqueDirs
+}
+
+// Checks if a directory contains any Go files
+func dirContainsGoFiles(dir string) bool {
+	// Check both *.go files directly and subdirectories with *.go files (1 level)
+	goFiles, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	if err != nil {
+		log.Printf("ERROR: Failed to check for Go files in %s: %v", dir, err)
+		return false
+	}
+
+	nonTestFiles := 0
+	for _, file := range goFiles {
+		if !strings.HasSuffix(file, "_test.go") {
+			nonTestFiles++
+		}
+	}
+	if nonTestFiles > 0 {
+		return true
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") &&
+			entry.Name() != "vendor" && entry.Name() != "node_modules" {
+			subdir := filepath.Join(dir, entry.Name())
+			subdirFiles, err := filepath.Glob(filepath.Join(subdir, "*.go"))
+			if err == nil && len(subdirFiles) > 0 {
+				for _, file := range subdirFiles {
+					if !strings.HasSuffix(file, "_test.go") {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 // Main function to scan coverage for a repo (Go/Python/mixed)
@@ -841,7 +1292,6 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 		os.RemoveAll(tmpDir)
 	}()
 
-	// Git clone with optimizations
 	args := []string{"clone", "--depth", "1", "--single-branch"}
 	if req.Branch != "" {
 		args = append(args, "-b", req.Branch)
@@ -849,11 +1299,10 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 	args = append(args, req.RepoURL, tmpDir)
 
 	log.Printf("INFO: %s Running git clone command: git %s", logPrefix, strings.Join(args, " "))
-	
-	// Add timeout for git clone
+
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	
+
 	clone := exec.CommandContext(ctx, "git", args...)
 	if out, err := clone.CombinedOutput(); err != nil {
 		log.Printf("ERROR: %s Git clone failed: %v, output: %s", logPrefix, err, string(out))
@@ -861,7 +1310,29 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 	}
 	log.Printf("INFO: %s Successfully cloned repository to %s", logPrefix, tmpDir)
 
-	// Check for custom coverage script first
+	var totalGoFiles, totalPyFiles, totalGoTestFiles, totalPyTestFiles int
+	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".go") {
+			if strings.HasSuffix(path, "_test.go") {
+				totalGoTestFiles++
+			} else {
+				totalGoFiles++
+			}
+		} else if strings.HasSuffix(path, ".py") {
+			if strings.Contains(path, "test") {
+				totalPyTestFiles++
+			} else {
+				totalPyFiles++
+			}
+		}
+		return nil
+	})
+	log.Printf("INFO: %s Repository contains %d Go files (%d tests) and %d Python files (%d tests)",
+		logPrefix, totalGoFiles, totalGoTestFiles, totalPyFiles, totalPyTestFiles)
+
 	script := ""
 	cfgPath := filepath.Join(tmpDir, ".keploy.yaml")
 	if data, err := os.ReadFile(cfgPath); err == nil {
@@ -878,16 +1349,14 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 
 	var resp CoverageResponse
 	var coverageFound bool
-
-	// Determine project type quickly
 	projectType := detectProjectType(tmpDir, logPrefix)
+	isMixed := totalGoFiles > 0 && totalPyFiles > 0
 
-	// Try custom script first if available
 	if !coverageFound && script != "" {
 		log.Printf("INFO: %s Running custom coverage script: %s", logPrefix, script)
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 		defer cancel()
-		
+
 		cmd := exec.CommandContext(ctx, "sh", "-c", script)
 		cmd.Dir = tmpDir
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -903,8 +1372,48 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 			}
 		}
 	}
+	if isMixed && !coverageFound {
+		log.Printf("INFO: %s Detected mixed Go/Python project, will scan both", logPrefix)
 
-	// Handle Python projects
+		goDirectories, goErr := detectGoStructure(tmpDir, logPrefix)
+		var goResp CoverageResponse
+		var goSuccess bool
+
+		if goErr == nil && len(goDirectories) > 0 {
+			log.Printf("INFO: %s Found %d Go directories to scan in mixed project", logPrefix, len(goDirectories))
+			goResp, goSuccess = processGoDirectoriesInParallel(goDirectories, tmpDir, logPrefix)
+		}
+
+		pythonResp, pythonErr := runPythonCoverage(tmpDir, logPrefix)
+		var pythonSuccess bool = pythonErr == nil && pythonResp.TotalCoverage > 0
+
+		if goSuccess && pythonSuccess {
+			log.Printf("INFO: %s Successfully got coverage from both Go (%.2f%%) and Python (%.2f%%)",
+				logPrefix, goResp.TotalCoverage, pythonResp.TotalCoverage)
+			goWeight := float64(totalGoFiles) / float64(totalGoFiles+totalPyFiles)
+			pythonWeight := float64(totalPyFiles) / float64(totalGoFiles+totalPyFiles)
+
+			totalCoverage := goResp.TotalCoverage*goWeight + pythonResp.TotalCoverage*pythonWeight
+
+			files := append(goResp.Files, pythonResp.Files...)
+
+			resp = CoverageResponse{
+				TotalCoverage: totalCoverage,
+				Files:         files,
+			}
+			coverageFound = true
+			log.Printf("INFO: %s Combined coverage for mixed project: %.2f%%", logPrefix, totalCoverage)
+		} else if goSuccess {
+			resp = goResp
+			coverageFound = true
+			log.Printf("INFO: %s Using Go coverage for mixed project: %.2f%%", logPrefix, resp.TotalCoverage)
+		} else if pythonSuccess {
+			resp = pythonResp
+			coverageFound = true
+			log.Printf("INFO: %s Using Python coverage for mixed project: %.2f%%", logPrefix, resp.TotalCoverage)
+		}
+	}
+
 	if !coverageFound && projectType == "python" {
 		log.Printf("INFO: %s Running Python coverage (primary language)", logPrefix)
 		pythonResp, pythonErr := runPythonCoverage(tmpDir, logPrefix)
@@ -917,7 +1426,6 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 		}
 	}
 
-	// Handle Go projects with optimizations
 	if !coverageFound {
 		log.Printf("INFO: %s Starting optimized Go coverage analysis", logPrefix)
 		goDirectories, err := detectGoStructure(tmpDir, logPrefix)
@@ -929,7 +1437,7 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 					coverageFound = true
 				}
 			}
-			
+
 			if !coverageFound {
 				log.Printf("ERROR: %s No code found in repository", logPrefix)
 				return CoverageResponse{}, errors.New("No code found in repository")
@@ -937,38 +1445,116 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 		} else {
 			log.Printf("INFO: %s Found %d Go directories to scan", logPrefix, len(goDirectories))
 
-			// Use parallel processing for multiple directories
-			if len(goDirectories) > 1 {
-				if goResp, success := processGoDirectoriesInParallel(goDirectories, tmpDir, logPrefix); success {
-					resp = goResp
-					coverageFound = true
-				}
+			if goResp, success := processGoDirectoriesInParallel(goDirectories, tmpDir, logPrefix); success {
+				resp = goResp
+				coverageFound = true
+				log.Printf("INFO: %s Parallel Go coverage processing succeeded with %.2f%%",
+					logPrefix, resp.TotalCoverage)
 			} else {
-				// Single directory - process normally
-				coverage, files, err := runGoModuleCoverage(goDirectories[0], logPrefix)
-				if err == nil && coverage > 0 {
-					resp = CoverageResponse{
-						TotalCoverage: coverage,
-						Files:         files,
-					}
-					coverageFound = true
-				}
-			}
+				log.Printf("WARNING: %s Parallel processing failed, trying comprehensive fallback", logPrefix)
 
-			// Only try fallbacks if parallel processing failed
-			if !coverageFound {
-				log.Printf("WARNING: %s Optimized methods failed, trying single fallback", logPrefix)
-				// Try only one fallback method to save time
-				if fallbackResp, err := fallbackCoverage(goDirectories[0]); err == nil {
-					log.Printf("INFO: %s Fallback succeeded", logPrefix)
-					resp = fallbackResp
-					coverageFound = true
+				for _, fallbackMethod := range []struct {
+					name string
+					fn   func(string) (CoverageResponse, error)
+				}{
+					{"fallbackCoverage", fallbackCoverage},
+					{"fallbackGocov", fallbackGocov},
+					{"fallbackGocover", fallbackGocover},
+				} {
+					log.Printf("INFO: %s Trying %s fallback across all %d directories",
+						logPrefix, fallbackMethod.name, len(goDirectories))
+
+					resultsChan := make(chan struct {
+						dir     string
+						resp    CoverageResponse
+						err     error
+						success bool
+					}, len(goDirectories))
+
+					var wg sync.WaitGroup
+					semaphore := make(chan struct{}, runtime.NumCPU())
+
+					for _, dir := range goDirectories {
+						wg.Add(1)
+						go func(directory string) {
+							defer wg.Done()
+							semaphore <- struct{}{}
+							defer func() { <-semaphore }()
+
+							relPath, _ := filepath.Rel(tmpDir, directory)
+							if relPath == "." {
+								relPath = "root"
+							}
+
+							log.Printf("INFO: %s Trying %s fallback on directory: %s",
+								logPrefix, fallbackMethod.name, relPath)
+
+							fallbackResp, err := fallbackMethod.fn(directory)
+							success := err == nil && fallbackResp.TotalCoverage > 0
+
+							resultsChan <- struct {
+								dir     string
+								resp    CoverageResponse
+								err     error
+								success bool
+							}{directory, fallbackResp, err, success}
+						}(dir)
+					}
+
+					go func() {
+						wg.Wait()
+						close(resultsChan)
+					}()
+
+					var successfulDirs []string
+					var allFiles []FileCoverage
+					var totalCoverage float64
+					var validResults int
+
+					for result := range resultsChan {
+						if !result.success {
+							log.Printf("WARNING: %s %s fallback failed for directory %s: %v",
+								logPrefix, fallbackMethod.name, result.dir, result.err)
+							continue
+						}
+
+						log.Printf("INFO: %s %s fallback succeeded for directory %s with %.2f%% coverage",
+							logPrefix, fallbackMethod.name, result.dir, result.resp.TotalCoverage)
+
+						successfulDirs = append(successfulDirs, result.dir)
+						totalCoverage += result.resp.TotalCoverage
+						validResults++
+
+						dirRelPath, _ := filepath.Rel(tmpDir, result.dir)
+						if dirRelPath == "." {
+							allFiles = append(allFiles, result.resp.Files...)
+						} else {
+							for _, file := range result.resp.Files {
+								file.File = filepath.Join(dirRelPath, file.File)
+								allFiles = append(allFiles, file)
+							}
+						}
+					}
+
+					if validResults > 0 {
+						finalCoverage := totalCoverage / float64(validResults)
+						log.Printf("INFO: %s %s fallback method succeeded for %d/%d directories: %v",
+							logPrefix, fallbackMethod.name, validResults, len(goDirectories), successfulDirs)
+
+						resp = CoverageResponse{
+							TotalCoverage: finalCoverage,
+							Files:         allFiles,
+						}
+						coverageFound = true
+						log.Printf("INFO: %s Overall coverage from %s fallback: %.2f%%",
+							logPrefix, fallbackMethod.name, finalCoverage)
+						break
+					}
 				}
 			}
 		}
 	}
 
-	// Final Python fallback for mixed projects
 	if !coverageFound {
 		log.Printf("WARNING: %s No coverage found, trying final Python fallback", logPrefix)
 		if pythonutils.DetectPythonProject(tmpDir) {
@@ -984,7 +1570,6 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 		return CoverageResponse{}, errors.New("unable to calculate coverage for this repository")
 	}
 
-	// Get commit hash
 	commitHash := ""
 	cmd := exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = tmpDir
@@ -993,7 +1578,6 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 		log.Printf("INFO: %s Got commit hash: %s", logPrefix, commitHash)
 	}
 
-	// Save to database if requested
 	if saveHistory {
 		log.Printf("INFO: %s Saving coverage history to database", logPrefix)
 		db, err := config.ConnectDB()
@@ -1057,6 +1641,16 @@ func detectProjectType(dir string, logPrefix string) string {
 	pythonInRoot := false
 	goHasTests := false
 	pythonHasTests := false
+	goTestCount := 0
+	pythonTestCount := 0
+
+	hasGoMod := fileExists(filepath.Join(dir, "go.mod"))
+	hasGoSum := fileExists(filepath.Join(dir, "go.sum"))
+	hasPyProject := fileExists(filepath.Join(dir, "pyproject.toml"))
+	hasRequirements := fileExists(filepath.Join(dir, "requirements.txt"))
+	hasSetupPy := fileExists(filepath.Join(dir, "setup.py"))
+	hasPoetryLock := fileExists(filepath.Join(dir, "poetry.lock"))
+	hasPipfile := fileExists(filepath.Join(dir, "Pipfile"))
 
 	if files, err := os.ReadDir(dir); err == nil {
 		for _, file := range files {
@@ -1067,31 +1661,25 @@ func detectProjectType(dir string, logPrefix string) string {
 					goInRoot = true
 					if strings.HasSuffix(name, "_test.go") {
 						goHasTests = true
+						goTestCount++
 					}
 				} else if strings.HasSuffix(name, ".py") {
 					pythonFileCount++
 					pythonInRoot = true
 					if strings.Contains(name, "test") {
 						pythonHasTests = true
+						pythonTestCount++
 					}
 				}
 			}
 		}
 	}
 
-	hasGoMod := fileExists(filepath.Join(dir, "go.mod"))
-	hasGoSum := fileExists(filepath.Join(dir, "go.sum"))
-	hasPyProject := fileExists(filepath.Join(dir, "pyproject.toml"))
-	hasRequirements := fileExists(filepath.Join(dir, "requirements.txt"))
-	hasSetupPy := fileExists(filepath.Join(dir, "setup.py"))
-	hasPoetryLock := fileExists(filepath.Join(dir, "poetry.lock"))
-	hasPipfile := fileExists(filepath.Join(dir, "Pipfile"))
-	
-
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
+
 		if info.IsDir() {
 			name := strings.ToLower(info.Name())
 			if strings.HasPrefix(name, ".") ||
@@ -1111,61 +1699,68 @@ func detectProjectType(dir string, logPrefix string) string {
 				goFileCount++
 				if strings.HasSuffix(name, "_test.go") {
 					goHasTests = true
+					goTestCount++
 				}
 			} else if strings.HasSuffix(name, ".py") {
 				pythonFileCount++
 				if strings.Contains(name, "test") {
 					pythonHasTests = true
+					pythonTestCount++
 				}
 			}
 		}
 		return nil
 	})
+
 	if err != nil {
 		log.Printf("WARNING: %s Error walking directory: %v", logPrefix, err)
 	}
 
-	log.Printf("INFO: %s Project analysis - Go files: %d (root: %t, tests: %t), Python files: %d (root: %t, tests: %t)",
-		logPrefix, goFileCount, goInRoot, goHasTests, pythonFileCount, pythonInRoot, pythonHasTests)
+	log.Printf("INFO: %s Project analysis - Go files: %d (root: %t, tests: %d), Python files: %d (root: %t, tests: %d)",
+		logPrefix, goFileCount, goInRoot, goTestCount, pythonFileCount, pythonInRoot, pythonTestCount)
 	log.Printf("INFO: %s Key files - go.mod: %t, pyproject.toml: %t, requirements.txt: %t, poetry.lock: %t, Pipfile: %t",
 		logPrefix, hasGoMod, hasPyProject, hasRequirements, hasPoetryLock, hasPipfile)
 
 	goScore := 0
 	pythonScore := 0
+
 	if goFileCount > 0 {
 		goScore += min(goFileCount/10+1, 5)
 	}
 	if pythonFileCount > 0 {
-		pythonScore += min(pythonFileCount/10+1, 5) 
+		pythonScore += min(pythonFileCount/10+1, 5)
 	}
 
 	if hasGoMod || hasGoSum {
-		goScore += 10 
+		goScore += 10
 	}
 	if hasPyProject || hasSetupPy {
-		pythonScore += 10 
+		pythonScore += 10
 	}
 	if hasPoetryLock {
-		pythonScore += 15 
+		pythonScore += 15
 	}
 	if hasPipfile {
-		pythonScore += 12 
+		pythonScore += 12
 	}
 	if hasRequirements {
 		pythonScore += 5
 	}
+
 	if goInRoot {
 		goScore += 5
 	}
 	if pythonInRoot {
 		pythonScore += 5
 	}
+
 	if goHasTests {
 		goScore += 3
 	}
 	if pythonHasTests {
 		pythonScore += 3
 	}
+
 	totalFiles := goFileCount + pythonFileCount
 	if totalFiles > 0 {
 		goRatio := float64(goFileCount) / float64(totalFiles)
@@ -1235,7 +1830,6 @@ func runPythonCoverage(dir string, logPrefix string) (CoverageResponse, error) {
 		CommitHash:    pythonResp.CommitHash,
 	}, nil
 }
-
 
 // Estimates Python coverage using pythonutils
 func estimatePythonCoverage(dir string, logPrefix string) (CoverageResponse, error) {
@@ -1330,7 +1924,14 @@ func cleanupInMemoryCache() {
 	defer jobsMutex.Unlock()
 	threshold := time.Now().Add(-30 * time.Minute)
 	for id, job := range completedJobs {
-		if job.UpdatedAt.Before(threshold) {
+
+		var t time.Time
+		if job.EndTime != nil {
+			t = *job.EndTime
+		} else {
+			t = job.StartTime
+		}
+		if t.Before(threshold) {
 			delete(completedJobs, id)
 		}
 	}
@@ -1374,4 +1975,45 @@ func GetCoverageJobStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, jobStatus)
 }
 
+// Helper function to extract file and error information from error messages
+type fileErrorMatch struct {
+	filename string
+	errorMsg string
+}
 
+func extractFileErrorFromLine(line string) *fileErrorMatch {
+	patterns := []struct {
+		regex      *regexp.Regexp
+		fileGroup  int
+		errorGroup int
+	}{
+
+		{regexp.MustCompile(`([^:]+\.go):(\d+)(?::\d+)?: (.+)`), 1, 3},
+		{regexp.MustCompile(`([^\s]+\.go):(\d+): (.+)`), 1, 3},
+		{regexp.MustCompile(`# ([^\s]+\.go):(\d+) (.+)`), 1, 3},
+	}
+
+	for _, pattern := range patterns {
+		matches := pattern.regex.FindStringSubmatch(line)
+		if matches != nil && len(matches) > pattern.errorGroup {
+			return &fileErrorMatch{
+				filename: matches[pattern.fileGroup],
+				errorMsg: matches[pattern.errorGroup],
+			}
+
+		}
+	}
+
+	if strings.Contains(line, ".py") && strings.Contains(line, "Error") {
+		pythonPattern := regexp.MustCompile(`([^\s]+\.py).*?([Ee]rror:? .+)`)
+		matches := pythonPattern.FindStringSubmatch(line)
+		if matches != nil && len(matches) >= 3 {
+			return &fileErrorMatch{
+				filename: matches[1],
+				errorMsg: matches[2],
+			}
+		}
+	}
+
+	return nil
+}

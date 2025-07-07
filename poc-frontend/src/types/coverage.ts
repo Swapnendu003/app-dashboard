@@ -2,6 +2,7 @@
 export interface FileCoverage {
   file: string;
   coverage: number;
+  error?: string; // Added error field
 }
 
 export interface CoverageResponse {

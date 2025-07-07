@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Repository } from '@/types/repository';
-import { runCoverageScan, getCoverageJobStatus, getCoverageHistory, getCoverageTrends, getUserRepositories, getCoverageById } from "@/services/api";
-import { AlertCircle, BarChart2, History, RefreshCw, GitBranch, GitMerge, GitCompare, Search, Loader2, CheckCircle2,} from 'lucide-react';
+import { runCoverageScan, getCoverageJobStatus, getCoverageHistory, getCoverageTrends, getUserRepositories, getCoverageById, getActiveJobs } from "@/services/api";
+import { AlertCircle, BarChart2, History, RefreshCw, GitBranch, GitMerge, GitCompare, Search, Loader2, CheckCircle2, Activity } from 'lucide-react';
 import { CoverageResponse, CoverageHistory, CoverageTrend } from '@/types/coverage';
 import { 
   FileHeatmap, 
@@ -13,6 +13,7 @@ import {
   BranchCoverageList
 } from '@/components/CoverageVisualizations';
 import SearchableDropdown from "@/components/SearchableDropdown";
+import ActiveJobsList from "@/components/ActiveJobsList";
 
 interface CoverageTabProps {
   repositories: Repository[];
@@ -29,7 +30,6 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
   const [selectedRepo, setSelectedRepo] = useState<string>('');
   const [scanBranch, setScanBranch] = useState<string>('');
   const [coverageResult, setCoverageResult] = useState<CoverageResponse | null>(null);
-  const [loadingCoverage, setLoadingCoverage] = useState<boolean>(false);
   const [coverageError, setCoverageError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -41,7 +41,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
 
-  const [activeTab, setActiveTab] = useState<'scanner' | 'history' | 'branches' | 'compare'>('scanner');
+  const [activeTab, setActiveTab] = useState<'scanner' | 'history' | 'branches' | 'compare' | 'jobs'>('scanner');
   const [compareBranch1, setCompareBranch1] = useState<string>('main');
   const [compareBranch2, setCompareBranch2] = useState<string>('develop');
   
@@ -64,6 +64,10 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
 
   const prevSearchQueryRef = useRef<string>('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [activeJobsCount, setActiveJobsCount] = useState(0);
+
+  // Add a concurrency map to track loading state per repo
+  const [scanLoadingMap, setScanLoadingMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const options = searchResults.map(repo => ({
@@ -97,7 +101,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
             }
             setJobStatus(status);
             setSuccess('Coverage scan completed successfully!');
-            setLoadingCoverage(false);
+            setScanLoadingMap(prev => ({ ...prev, [selectedRepo]: false }));
             localStorage.removeItem(`job_${jobId}_polling`);
             if (response.data.result_id) {
               try {
@@ -122,7 +126,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
             }
             setJobStatus(status);
             setCoverageError(`Coverage scan failed: ${response.data.error || 'Unknown error'}`);
-            setLoadingCoverage(false);
+            setScanLoadingMap(prev => ({ ...prev, [selectedRepo]: false }));
             localStorage.removeItem(`job_${jobId}_polling`);
             setTimeout(() => {
               setCoverageError(null);
@@ -144,7 +148,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
             }
             setJobStatus('failed');
             setCoverageError('Coverage scan timed out. Please try again.');
-            setLoadingCoverage(false);
+            setScanLoadingMap(prev => ({ ...prev, [selectedRepo]: false }));
             localStorage.removeItem(`job_${jobId}_polling`);
             setTimeout(() => {
               setJobId(null);
@@ -255,7 +259,8 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
 
   const handleCoverageScan = async () => {
     if (!selectedRepo) return;
-    setLoadingCoverage(true);
+    // Use map instead of single loadingCoverage state
+    setScanLoadingMap(prev => ({ ...prev, [selectedRepo]: true }));
     setCoverageError(null);
     setSuccess(null);
     setJobId(null);
@@ -275,13 +280,14 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
         localStorage.setItem(`job_${response.data.job_id}_polling`, 'true');
       } else {
         setSuccess('Coverage scan completed successfully!');
-        setLoadingCoverage(false);
+        // Immediately mark scanning done for that repo
+        setScanLoadingMap(prev => ({ ...prev, [selectedRepo]: false }));
         setTimeout(() => setSuccess(null), 5000);
       }
     } catch (err: any) {
       console.error('Error scanning coverage:', err);
       setCoverageError(err.response?.data?.error || 'Failed to scan coverage. Please try again.');
-      setLoadingCoverage(false);
+      setScanLoadingMap(prev => ({ ...prev, [selectedRepo]: false }));
     }
   };
 
@@ -296,6 +302,45 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
       setCoverageTrends([]);
     }
   };
+
+  const handleActiveJobsRefresh = () => {
+    // Reset job ID and status if they were being tracked
+    if (jobId && (jobStatus === 'completed' || jobStatus === 'failed')) {
+      setJobId(null);
+      setJobStatus(null);
+    }
+  };
+
+  const handleViewJobResults = (resultId: string) => {
+    getCoverageById(resultId)
+      .then(response => {
+        setCoverageResult(response.data);
+        setActiveTab('scanner');
+      })
+      .catch(err => {
+        console.error('Failed to fetch job results:', err);
+      });
+  };
+
+  const checkActiveJobs = useCallback(() => {
+    getActiveJobs()
+      .then(response => {
+        const inProgressJobs = response.data.filter((job: any) => job.status === 'in_progress').length;
+        setActiveJobsCount(inProgressJobs);
+      })
+      .catch(err => {
+        console.error('Failed to check active jobs:', err);
+      });
+  }, []);
+
+  useEffect(() => {
+    // Initial check for active jobs
+    checkActiveJobs();
+    
+    // Poll for active jobs periodically
+    const interval = setInterval(checkActiveJobs, 30000);
+    return () => clearInterval(interval);
+  }, [checkActiveJobs]);
 
   const renderRepositoryDropdown = () => {
     return (
@@ -409,6 +454,22 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
               <GitCompare className="w-4 h-4 mr-2" />
               Compare
             </button>
+            <button
+              onClick={() => setActiveTab('jobs')}
+              className={`px-4 py-2 flex items-center ${
+                activeTab === 'jobs'
+                  ? 'border-b-2 border-orange-500 text-orange-600'
+                  : 'text-orange-400 hover:text-orange-600'
+              }`}
+            >
+              <Activity className="w-4 h-4 mr-2" />
+              Active Jobs
+              {activeJobsCount > 0 && (
+                <span className="ml-2 px-1.5 py-0.5 bg-orange-500 text-white rounded-full text-xs">
+                  {activeJobsCount}
+                </span>
+              )}
+            </button>
           </div>
           {activeTab === 'scanner' && (
             <div>
@@ -426,18 +487,18 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                 </div>
                 <button
                   onClick={handleCoverageScan}
-                  disabled={!selectedRepo || loadingCoverage}
+                  disabled={!selectedRepo || scanLoadingMap[selectedRepo]}
                   className="mt-4 md:mt-0 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-md hover:from-red-500 hover:to-orange-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {loadingCoverage ? (
+                  {scanLoadingMap[selectedRepo] ? (
                     <>
                       <Loader2 size={16} className="animate-spin" />
-                      <span>Scanning...</span>
+                      <span>Scan Coverage</span>
                     </>
                   ) : (
                     <>
                       <BarChart2 size={16} />
-                      <span>Run Coverage Scan</span>
+                      <span>Scan Coverage</span>
                     </>
                   )}
                 </button>
@@ -548,43 +609,35 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                 </div>
               )}
               {coverageError && (
-                <div className="mt-4 bg-red-100 border border-red-300 p-4 rounded-md">
+                <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md">
                   <div className="flex items-start space-x-3">
-                    <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                    <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
                     <div>
-                      <p className="text-red-700 font-medium">Scan Failed</p>
-                      <p className="text-sm text-red-500 mt-1">{coverageError}</p>
+                      <p className="text-orange-700 font-medium">Scan Failed</p>
+                      <p className="text-sm text-orange-500 mt-1">{coverageError}</p>
                     </div>
                   </div>
                 </div>
               )}
               {success && (
-                <div className="mt-4 bg-green-100 border border-green-300 p-4 rounded-md">
+                <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md">
                   <div className="flex items-start space-x-3">
-                    <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                    <CheckCircle2 className="h-5 w-5 text-orange-600 mt-0.5" />
                     <div>
-                      <p className="text-green-700 font-medium">Success!</p>
-                      <p className="text-sm text-green-600 mt-1">{success}</p>
+                      <p className="text-orange-700 font-medium">Success!</p>
+                      <p className="text-sm text-orange-600 mt-1">{success}</p>
                     </div>
                   </div>
                 </div>
               )}
               {jobId && jobStatus && jobStatus !== 'completed' && jobStatus !== 'failed' && (
-                <div className="mt-4 bg-blue-100 border border-blue-300 p-4 rounded-md">
+                <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md">
                   <div className="flex items-start space-x-3">
-                    <Loader2 className="h-5 w-5 text-blue-500 animate-spin mt-0.5" />
+                    <Loader2 className="h-5 w-5 text-orange-500 animate-spin mt-0.5" />
                     <div>
-                      <p className="text-blue-700 font-medium">
-                        Coverage scan in progress
-                      </p>
-                      <div className="mt-2">
-                        <div className="flex justify-between text-xs text-gray-400">
-                          <span>Job ID: {jobId}</span>
-                          <span>Status: {jobStatus}</span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-2">
-                          Large repositories may take several minutes. You can leave this page and check results later.
-                        </p>
+                      <p className="text-orange-700 font-medium">Coverage scan in progress</p>
+                      <div className="mt-2 text-xs text-orange-400">
+                        Job ID: {jobId} | Status: {jobStatus}
                       </div>
                     </div>
                   </div>
@@ -600,6 +653,12 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                     <div className="bg-orange-50 p-4 rounded-md border border-orange-100">
                       <span className="block text-sm text-orange-400">Files Scanned</span>
                       <span className="text-2xl font-bold text-orange-600">{coverageResult.files?.length ?? 0}</span>
+                      {coverageResult.files && coverageResult.files.filter(f => f.error).length > 0 && (
+                        <div className="mt-1 text-xs text-red-500 flex items-center">
+                          <AlertCircle size={12} className="mr-1" />
+                          {coverageResult.files.filter(f => f.error).length} file(s) with errors
+                        </div>
+                      )}
                     </div>
                   </div>
                   {coverageResult.files && coverageResult.files.length > 0 && (
@@ -644,7 +703,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                   >Hide Results</button>
                 </div>
               )}
-              {loadingCoverage && !coverageResult && (
+              {loadingHistory && !coverageResult && (
                 <div className="flex justify-center items-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
                 </div>
@@ -656,13 +715,13 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
               {selectedRepo ? (
                 <>
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-gray-300">
+                    <h3 className="text-lg font-semibold text-orange-700">
                       <History size={18} className="inline mr-2" />
                       Coverage History
                     </h3>
                     <div className="flex items-center space-x-2">
                       <select
-                        className="p-1 text-sm bg-[#263544] text-white rounded-md border border-gray-700"
+                        className="p-1 text-sm rounded-md border border-gray-700  bg-orange-50 hover:bg-orange-100 text-orange-700 rounded text-sm border border-orange-200 transition-colors"
                         value={timeframe}
                         onChange={e => setTimeframe(e.target.value as 'daily' | 'weekly' | 'monthly')}
                       >
@@ -743,6 +802,12 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
               )}
             </div>
           )} 
+          {activeTab === 'jobs' && (
+            <ActiveJobsList 
+              onRefresh={handleActiveJobsRefresh}
+              onViewResults={handleViewJobResults}
+            />
+          )}
         </div>
       )}
     </div>
