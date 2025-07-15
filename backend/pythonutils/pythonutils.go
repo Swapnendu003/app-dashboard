@@ -17,7 +17,8 @@ import (
 type FileCoverage struct {
 	File     string  `json:"file"`
 	Coverage float64 `json:"coverage"`
-	Error    string  `json:"error,omitempty"` 
+	Error    string  `json:"error,omitempty"`
+	Status   string  `json:"status"`
 }
 type PythonFileStats struct {
 	TotalExecutableLines int
@@ -34,6 +35,8 @@ type CoverageResponse struct {
 	Timestamp     string         `json:"timestamp,omitempty"`
 	CommitHash    string         `json:"commit_hash,omitempty"`
 }
+
+type PythonCoverageResponse = CoverageResponse
 
 type PythonProjectType int
 
@@ -746,9 +749,17 @@ func parseCoverageReport(output string, logPrefix string) (CoverageResponse, err
 			fileName := fields[0]
 			covStr := strings.TrimSuffix(fields[3], "%")
 			if coverage, err := strconv.ParseFloat(covStr, 64); err == nil {
+				status := "Success"
+				errorMsg := ""
+				if coverage == 0.0 {
+					status = "Failure"
+					errorMsg = "File has 0% code coverage - no tests cover this file"
+				}
 				files = append(files, FileCoverage{
 					File:     fileName,
 					Coverage: coverage,
+					Status:   status,
+					Error:    errorMsg,
 				})
 			}
 		}
@@ -851,9 +862,18 @@ func EstimatePythonCoverage(dir string, logPrefix string) (CoverageResponse, err
 			fileCoverage = math.Max(0, fileCoverage-10)
 		}
 
+		status := "Success"
+		errorMsg := ""
+		if fileCoverage <= 0 {
+			status = "Failure"
+			errorMsg = "File has 0% code coverage - no tests cover this file"
+			fileCoverage = 0.0
+		}
 		files = append(files, FileCoverage{
 			File:     relPath,
 			Coverage: fileCoverage,
+			Status:   status,
+			Error:    errorMsg,
 		})
 	}
 

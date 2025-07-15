@@ -9,7 +9,8 @@ import (
 type FileCoverage struct {
 	File     string  `json:"file" bson:"file"`
 	Coverage float64 `json:"coverage" bson:"coverage"`
-	Error    string  `json:"error,omitempty" bson:"error,omitempty"` 
+	Status   string  `bson:"status" json:"status"`
+	Error    string  `bson:"error,omitempty" json:"error,omitempty"`
 }
 
 type CoverageHistory struct {
@@ -20,5 +21,6 @@ type CoverageHistory struct {
 	Files         []FileCoverage     `json:"files" bson:"files"`
 	Timestamp     time.Time          `json:"timestamp" bson:"timestamp"`
 	CommitHash    string             `json:"commit_hash,omitempty" bson:"commit_hash,omitempty"`
+	UserID        primitive.ObjectID `json:"user_id,omitempty" bson:"user_id,omitempty"`
 }
 

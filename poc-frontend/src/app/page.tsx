@@ -150,10 +150,11 @@ export default function HomePage() {
           className="mx-auto w-40 mb-8"
         />
         <p className="text-2xl md:text-4xl lg:text-7xl text-gray-900 font-bold inter-var text-center">
-          Keploy - Simplify Your API Testing
+          Welcome to Your Code Coverage & Activity Dashboard by Keploy
         </p>
         <p className="text-base md:text-lg mt-4 text-gray-700 font-normal inter-var text-center">
-          Automate performance and functional testing for your APIs with ease
+          Track, visualize, and improve your codebase health across Go, Python, JavaScript, and TypeScript projects.<br />
+          Get instant insights into repository activity, test coverage, and developer contributions—all in one place.
         </p>
         <Suspense fallback={<div className="flex justify-center mt-10"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-orange-400"></div></div>}>
           <AuthHandler

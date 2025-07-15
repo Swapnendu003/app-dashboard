@@ -65,6 +65,23 @@ func GetCoverageHistory(c *gin.Context) {
 		return
 	}
 
+	// Ensure all files in all results have status fields populated
+	for i := range results {
+		for j := range results[i].Files {
+			// If status is empty, populate based on coverage
+			if results[i].Files[j].Status == "" {
+				if results[i].Files[j].Coverage == 0.0 {
+					results[i].Files[j].Status = "Failure"
+					if results[i].Files[j].Error == "" {
+						results[i].Files[j].Error = "File has 0% code coverage - no tests cover this file"
+					}
+				} else {
+					results[i].Files[j].Status = "Success"
+				}
+			}
+		}
+	}
+
 	if searchQuery != "" {
 		searchLower := strings.ToLower(searchQuery)
 		var filtered []models.CoverageHistory
@@ -118,6 +135,21 @@ func GetCoverageById(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Coverage record not found"})
 		return
+	}
+
+	// Ensure files have status fields populated
+	for i := range result.Files {
+		// If status is empty, populate based on coverage
+		if result.Files[i].Status == "" {
+			if result.Files[i].Coverage == 0.0 {
+				result.Files[i].Status = "Failure"
+				if result.Files[i].Error == "" {
+					result.Files[i].Error = "File has 0% code coverage - no tests cover this file"
+				}
+			} else {
+				result.Files[i].Status = "Success"
+			}
+		}
 	}
 
 	c.JSON(http.StatusOK, result)
