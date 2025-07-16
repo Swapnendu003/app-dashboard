@@ -14,4 +14,5 @@ export interface Repository {
   created_at: string;
   updated_at: string;
   languages?: Record<string, number>; 
+  coverage?: number;
 }

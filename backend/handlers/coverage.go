@@ -777,6 +777,27 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 				resp.Branch = req.Branch
 				resp.Timestamp = history.Timestamp.Format(time.RFC3339)
 				resp.CommitHash = commitHash
+				repoCollection := db.Collection("repositories")
+				update := bson.M{
+					"$set": bson.M{
+						"coverage":         resp.TotalCoverage,
+						"last_coverage_at": now,
+					},
+				}
+				filter := bson.M{
+					"$or": []bson.M{
+						{"url": req.RepoURL},
+						{"html_url": req.RepoURL},
+						{"full_name": strings.TrimPrefix(strings.TrimPrefix(req.RepoURL, "https://github.com/"), "https://api.github.com/repos/")},
+					},
+				}
+				_, err = repoCollection.UpdateOne(ctx, filter, update)
+				if err != nil {
+					log.Printf("WARNING: %s Failed to update repository coverage: %v", logPrefix, err)
+				} else {
+					log.Printf("INFO: %s Successfully updated repository coverage to %.2f%%", logPrefix, resp.TotalCoverage)
+				}
+
 				log.Printf("INFO: %s Successfully saved coverage history", logPrefix)
 			} else {
 				log.Printf("WARNING: %s Failed to save coverage history: %v", logPrefix, err)

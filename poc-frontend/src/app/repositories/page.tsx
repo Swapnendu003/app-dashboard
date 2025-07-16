@@ -515,7 +515,7 @@ const RepositoriesPage = () => {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {repositories.map((repo) => (
-                    <div key={repo.id} className="bg-white p-4 rounded-lg shadow-md border border-orange-100 hover:border-orange-400 transition-all">
+                    <div key={repo.id} className="bg-white p-4 rounded-lg shadow-md border border-orange-100 hover:border-orange-400 transition-all relative">
                       <div className="flex justify-between items-start mb-2">
                         <h3 className="text-xl font-semibold text-orange-600 truncate max-w-[80%]" title={repo.name}>{repo.name}</h3>
                         <span className={`text-xs font-medium rounded-full px-2 py-1 ${repo.private ? 'bg-orange-100 text-orange-400' : 'bg-green-100 text-green-700'}`}>
@@ -538,7 +538,15 @@ const RepositoriesPage = () => {
                           {formatDate(repo.updated_at)}
                         </span>
                       </div>
-                      <div className="mt-4 flex justify-end">
+                      <div className="mt-4 flex justify-between items-center gap-2">
+                        {typeof repo.coverage === 'number' && (
+                          <span
+                            className="text-xs font-semibold px-2 py-1 rounded-full bg-gradient-to-r from-green-400 to-green-600 text-white"
+                            title={`Coverage: ${repo.coverage.toFixed(1)}%`}
+                          >
+                            Coverage: {repo.coverage.toFixed(1)}%
+                          </span>
+                        )}
                         <a
                           href={repo.html_url}
                           target="_blank"
