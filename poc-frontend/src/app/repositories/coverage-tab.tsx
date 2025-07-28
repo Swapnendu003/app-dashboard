@@ -540,7 +540,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                             />
                           </div>
                         </div>
-                        <label htmlFor="async-toggle" className="ml-3 text-sm text-gray-300 cursor-pointer" onClick={() => setScanSettings({...scanSettings, useAsync: !scanSettings.useAsync})}>
+                        <label htmlFor="async-toggle" className="ml-3 text-sm text-gray-600 cursor-pointer" onClick={() => setScanSettings({...scanSettings, useAsync: !scanSettings.useAsync})}>
                           Use asynchronous scan (recommended for large repositories)
                         </label>
                       </div>
@@ -562,7 +562,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
                             />
                           </div>
                         </div>
-                        <label htmlFor="small-repo-toggle" className="ml-3 text-sm text-gray-300 cursor-pointer" onClick={() => setScanSettings({...scanSettings, useAsync: false})}>
+                        <label htmlFor="small-repo-toggle" className="ml-3 text-sm text-gray-600 cursor-pointer" onClick={() => setScanSettings({...scanSettings, useAsync: false})}>
                           Optimize for small repositories (faster results)
                         </label>
                       </div>

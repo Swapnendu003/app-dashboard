@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yourusername/backend/config"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type DashboardMetrics struct {
@@ -20,6 +20,17 @@ type DashboardMetrics struct {
 }
 
 func GetCoverageMetrics(c *gin.Context) {
+	userIDStr, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
 	db, err := config.ConnectDB()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database connection failed"})
@@ -30,46 +41,52 @@ func GetCoverageMetrics(c *gin.Context) {
 	defer cancel()
 
 	historyCollection := db.Collection("coverage_history")
-	repoCount, err := historyCollection.Distinct(ctx, "repository", bson.M{})
-
-	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
-	totalScansFilter := bson.M{"timestamp": bson.M{"$gte": thirtyDaysAgo}}
-	totalScans, _ := historyCollection.CountDocuments(ctx, totalScansFilter)
-
-	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
-	recentScansFilter := bson.M{"timestamp": bson.M{"$gte": sevenDaysAgo}}
-	recentScans, _ := historyCollection.CountDocuments(ctx, recentScansFilter)
-
-	opts := options.Find().SetSort(bson.M{"timestamp": -1}).SetLimit(100)
-	cursor, err := historyCollection.Find(ctx, bson.M{}, opts)
+	cursor, err := historyCollection.Find(ctx, bson.M{"user_id": userID})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch coverage data"})
 		return
 	}
 	defer cursor.Close(ctx)
 
+	uniqueRepos := make(map[string]struct{})
+	totalScans := 0
 	var totalCoverage float64
-	var count int
+	var scanCount int
+	var recentScans int
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
+
 	for cursor.Next(ctx) {
 		var history struct {
-			TotalCoverage float64 `bson:"total_coverage"`
+			Repository    string `bson:"repository"`
+			NumberOfScans int    `bson:"number_of_scans"`
+			ScanHistory   []struct {
+				TotalCoverage float64   `bson:"total_coverage"`
+				Timestamp     time.Time `bson:"timestamp"`
+			} `bson:"scan_history"`
 		}
 		if err := cursor.Decode(&history); err == nil {
-			totalCoverage += history.TotalCoverage
-			count++
+			uniqueRepos[history.Repository] = struct{}{}
+			totalScans += history.NumberOfScans
+			for _, scan := range history.ScanHistory {
+				totalCoverage += scan.TotalCoverage
+				scanCount++
+				if scan.Timestamp.After(sevenDaysAgo) {
+					recentScans++
+				}
+			}
 		}
 	}
 
 	averagePassRate := 0.0
-	if count > 0 {
-		averagePassRate = totalCoverage / float64(count)
+	if scanCount > 0 {
+		averagePassRate = totalCoverage / float64(scanCount)
 	}
 
 	metrics := DashboardMetrics{
-		Repositories:    len(repoCount),
-		TotalScans:      int(totalScans),
+		Repositories:    len(uniqueRepos),
+		TotalScans:      totalScans,
 		AveragePassRate: averagePassRate,
-		RecentScans:     int(recentScans),
+		RecentScans:     recentScans,
 		LastUpdated:     time.Now().Format(time.RFC3339),
 	}
 

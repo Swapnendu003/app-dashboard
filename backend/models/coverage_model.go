@@ -13,6 +13,13 @@ type FileCoverage struct {
 	Error    string  `bson:"error,omitempty" json:"error,omitempty"`
 }
 
+type ScanRecord struct {
+	TotalCoverage float64        `json:"total_coverage" bson:"total_coverage"`
+	Files         []FileCoverage `json:"files" bson:"files"`
+	Timestamp     time.Time      `json:"timestamp" bson:"timestamp"`
+	CommitHash    string         `json:"commit_hash,omitempty" bson:"commit_hash,omitempty"`
+}
+
 type CoverageHistory struct {
 	ID            primitive.ObjectID `json:"id" bson:"_id"`
 	Repository    string             `json:"repository" bson:"repository"`
@@ -22,5 +29,6 @@ type CoverageHistory struct {
 	Timestamp     time.Time          `json:"timestamp" bson:"timestamp"`
 	CommitHash    string             `json:"commit_hash,omitempty" bson:"commit_hash,omitempty"`
 	UserID        primitive.ObjectID `json:"user_id,omitempty" bson:"user_id,omitempty"`
+	NumberOfScans int                `json:"number_of_scans" bson:"number_of_scans"`
+	ScanHistory   []ScanRecord       `json:"scan_history" bson:"scan_history"`
 }
-

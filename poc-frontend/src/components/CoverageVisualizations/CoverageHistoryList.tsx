@@ -16,12 +16,23 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredHistory, setFilteredHistory] = useState<CoverageHistory[]>(coverageHistory);
 
+  const allScans = coverageHistory.flatMap(history =>
+    history.scan_history?.map(scan => ({
+      ...scan,
+      branch: history.branch,
+      commit_hash: scan.commit_hash,
+      id: history.id,
+      repository: history.repository,
+      user_id: history.user_id,
+    })) || []
+  );
+
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setFilteredHistory(coverageHistory);
+      setFilteredHistory(allScans);
     } else {
       const query = searchQuery.toLowerCase();
-      const filtered = coverageHistory.filter(item => 
+      const filtered = allScans.filter(item =>
         (item.branch && item.branch.toLowerCase().includes(query)) ||
         (item.commit_hash && item.commit_hash.toLowerCase().includes(query))
       );
@@ -44,7 +55,6 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
     }
   };
 
-  // Calculate coverage color class
   const getCoverageColorClass = (coverage: number): string => {
     if (coverage >= 80) return 'text-green-500';
     if (coverage >= 60) return 'text-green-600';
@@ -91,7 +101,7 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
             </thead>
             <tbody className="divide-y divide-orange-100">
               {filteredHistory.map((history, index) => (
-                <tr key={history.id} className="bg-white hover:bg-orange-50 transition-colors">
+                <tr key={history.id + history.timestamp} className="bg-white hover:bg-orange-50 transition-colors">
                   <td className="py-2 px-4 text-orange-900">
                     <div className="flex items-center">
                       <GitBranch size={14} className="mr-2 text-orange-300" />

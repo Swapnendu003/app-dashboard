@@ -178,7 +178,7 @@ export const runCoverageScan = async (
     cloneTimeout?: number 
   }
 ) => {
-  return api.post('/coverage', { 
+  return api.post('api/coverage', { 
     repo_url: repoUrl, 
     branch, 
     async: options?.async || false, 
@@ -213,7 +213,7 @@ export const getCoverageJobStatus = async (jobId: string) => {
       }
       localStorage.setItem(`job_${jobId}_polling`, 'true');
     }
-    const response = await api.get(`/coverage/status/${jobId}`);
+    const response = await api.get(`/api/coverage/status/${jobId}`);
     if (typeof localStorage !== 'undefined' && 
         (response.data.status === 'completed' || response.data.status === 'failed')) {
       localStorage.setItem(`job_${jobId}_status`, response.data.status);
@@ -229,45 +229,49 @@ export const getCoverageJobStatus = async (jobId: string) => {
 };
 
 export const getActiveJobs = async () => {
-  return api.get('/coverage/jobs/active');
+  return api.get('/api/coverage/jobs/active');
 };
 
 export const cancelJob = async (jobId: string) => {
-  return api.delete(`/coverage/jobs/${jobId}`);
+  return api.delete(`api/coverage/jobs/${jobId}`);
 };
 
 export const getCoverageHistory = async (repoUrl: string) => {
-  return api.get('/coverage/history', { params: { repo_url: repoUrl } });
+  return api.get('/api/coverage/history', { params: { repo_url: repoUrl } });
 };
 
 export const getCoverageById = async (id: string) => {
-  return api.get(`/coverage/${id}`);
+  return api.get(`api/coverage/${id}`);
 };
 
 export const getCoverageTrends = async (repoUrl: string, days = 30) => {
-  return api.get('/coverage/trends', { params: { repo_url: repoUrl, days } });
+  return api.get('/api/coverage/trends', { params: { repo_url: repoUrl, days } });
 };
 
 export const scanMultipleBranches = async (repoUrl: string, branches: string[]) => {
-  return api.post('/coverage/branches', { repo_url: repoUrl, branches });
+  return api.post('/api/coverage/branches', { repo_url: repoUrl, branches });
 };
 
 export const getBranchCoverage = async (repoUrl: string) => {
-  return api.get('/coverage/branches', { params: { repo_url: repoUrl } });
+  return api.get('api/coverage/branches', { params: { repo_url: repoUrl } });
 };
 
 export const compareBranchCoverage = async (repoUrl: string, branch1: string, branch2: string) => {
-  return api.get('/coverage/compare', { 
+  return api.get('/api/coverage/compare', { 
     params: { repo_url: repoUrl, branch1, branch2 } 
   });
 };
 
 export const getCoverageMetrics = async () => {
-  return api.get('/coverage/metrics');
+  return api.get('/api/coverage/metrics');
 };
 
 export const getRecentActivity = async () => {
-  return api.get('/coverage/recent-activity');
+  return api.get('/api/coverage/recent-activity');
+};
+
+export const getDashboardMetrics = async () => {
+  return api.get('/api/dashboard/metrics');
 };
 
 export default api;

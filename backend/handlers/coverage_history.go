@@ -22,6 +22,17 @@ func GetCoverageHistory(c *gin.Context) {
 		return
 	}
 
+	userIDStr, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
 	searchQuery := c.Query("search")
 
 	db, err := config.ConnectDB()
@@ -36,6 +47,7 @@ func GetCoverageHistory(c *gin.Context) {
 
 	filter := bson.M{
 		"repository": repoURL,
+		"user_id":    userID,
 	}
 
 	if branch := c.Query("branch"); branch != "" {

@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"go.mongodb.org/mongo-driver/mongo/options"
+
 	"github.com/gin-gonic/gin"
 	"github.com/yourusername/backend/config"
 	"github.com/yourusername/backend/goutils"
@@ -25,8 +27,9 @@ import (
 )
 
 type CoverageRequest struct {
-	RepoURL string `json:"repo_url" binding:"required"`
-	Branch  string `json:"branch"`
+	RepoURL string             `json:"repo_url" binding:"required"`
+	Branch  string             `json:"branch"`
+	UserID  primitive.ObjectID `json:"user_id"`
 }
 
 type CoverageAsyncRequest struct {
@@ -130,6 +133,16 @@ func RunCoverageScan(c *gin.Context) {
 	if req.Async {
 		log.Printf("INFO: Starting asynchronous coverage scan for large repo")
 		jobID := primitive.NewObjectID().Hex()
+		userIDStr, exists := c.Get("userID")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			return
+		}
+		userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+			return
+		}
 		db, err := config.ConnectDB()
 		if err != nil {
 			log.Printf("ERROR: Failed to connect to database: %v", err)
@@ -184,6 +197,7 @@ func RunCoverageScan(c *gin.Context) {
 			coverageReq := CoverageRequest{
 				RepoURL: req.RepoURL,
 				Branch:  req.Branch,
+				UserID:  userID,
 			}
 
 			progressDone := make(chan bool)
@@ -221,9 +235,21 @@ func RunCoverageScan(c *gin.Context) {
 		return
 	}
 
+	userIDStr, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
 	coverageReq := CoverageRequest{
 		RepoURL: req.RepoURL,
 		Branch:  req.Branch,
+		UserID:  userID,
 	}
 	resp, err := scanCoverage(coverageReq, false)
 	if err != nil {
@@ -758,50 +784,63 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 				})
 			}
 
-			history := models.CoverageHistory{
-				ID:            primitive.NewObjectID(),
-				Repository:    req.RepoURL,
-				Branch:        req.Branch,
+			scanRecord := models.ScanRecord{
 				TotalCoverage: resp.TotalCoverage,
 				Files:         files,
 				Timestamp:     now,
 				CommitHash:    commitHash,
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-
-			if result, err := collection.InsertOne(ctx, history); err == nil {
-				resp.ID = result.InsertedID.(primitive.ObjectID).Hex()
-				resp.Repository = req.RepoURL
-				resp.Branch = req.Branch
-				resp.Timestamp = history.Timestamp.Format(time.RFC3339)
-				resp.CommitHash = commitHash
-				repoCollection := db.Collection("repositories")
-				update := bson.M{
-					"$set": bson.M{
-						"coverage":         resp.TotalCoverage,
-						"last_coverage_at": now,
-					},
-				}
-				filter := bson.M{
-					"$or": []bson.M{
-						{"url": req.RepoURL},
-						{"html_url": req.RepoURL},
-						{"full_name": strings.TrimPrefix(strings.TrimPrefix(req.RepoURL, "https://github.com/"), "https://api.github.com/repos/")},
-					},
-				}
-				_, err = repoCollection.UpdateOne(ctx, filter, update)
-				if err != nil {
-					log.Printf("WARNING: %s Failed to update repository coverage: %v", logPrefix, err)
-				} else {
-					log.Printf("INFO: %s Successfully updated repository coverage to %.2f%%", logPrefix, resp.TotalCoverage)
-				}
-
-				log.Printf("INFO: %s Successfully saved coverage history", logPrefix)
-			} else {
-				log.Printf("WARNING: %s Failed to save coverage history: %v", logPrefix, err)
+			filter := bson.M{
+				"repository": req.RepoURL,
+				"user_id":    req.UserID,
 			}
+			update := bson.M{
+				"$set": bson.M{
+					"total_coverage": resp.TotalCoverage,
+					"files":          files,
+					"timestamp":      now,
+					"commit_hash":    commitHash,
+				},
+				"$inc": bson.M{
+					"number_of_scans": 1,
+				},
+				"$push": bson.M{
+					"scan_history": scanRecord,
+				},
+			}
+			opts := options.Update().SetUpsert(true)
+			_, err := collection.UpdateOne(ctx, filter, update, opts)
+			if err != nil {
+				log.Printf("WARNING: %s Failed to upsert coverage history: %v", logPrefix, err)
+			} else {
+				log.Printf("INFO: %s Successfully upserted coverage history", logPrefix)
+			}
+
+			repoCollection := db.Collection("repositories")
+			update = bson.M{
+				"$set": bson.M{
+					"coverage":         resp.TotalCoverage,
+					"last_coverage_at": now,
+				},
+			}
+			filter = bson.M{
+				"$or": []bson.M{
+					{"url": req.RepoURL},
+					{"html_url": req.RepoURL},
+					{"full_name": strings.TrimPrefix(strings.TrimPrefix(req.RepoURL, "https://github.com/"), "https://api.github.com/repos/")},
+				},
+			}
+			_, err = repoCollection.UpdateOne(ctx, filter, update)
+			if err != nil {
+				log.Printf("WARNING: %s Failed to update repository coverage: %v", logPrefix, err)
+			} else {
+				log.Printf("INFO: %s Successfully updated repository coverage to %.2f%%", logPrefix, resp.TotalCoverage)
+			}
+
+			log.Printf("INFO: %s Successfully saved coverage history", logPrefix)
+		} else {
+			log.Printf("WARNING: %s Failed to save coverage history: %v", logPrefix, err)
 		}
 	}
 

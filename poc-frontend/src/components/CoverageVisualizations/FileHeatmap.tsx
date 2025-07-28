@@ -1,11 +1,20 @@
+
+
+
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
-import { Search, AlertCircle, Grid, List, BarChart3, TrendingUp, FileText, Zap } from 'lucide-react';
-import SpotlightCard from '@/components/SpotLightCard'; // <-- Updated import path
-import AnimatedList from '@/components/AnimatedList';
+declare global {
+  interface Window {
+    echarts?: any;
+  }
+}
 
-// Mock data for demonstration
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { Search, AlertCircle, Grid, List, BarChart3, TrendingUp, FileText, Zap, PieChart } from 'lucide-react';
+
+import SpotlightCard from '../SpotLightCard';
+import AnimatedList from '../AnimatedList';
+
 const generateMockFiles = (count: number) => {
   const extensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.go', '.rs'];
   const directories = ['src/components', 'src/utils', 'src/services', 'src/hooks', 'src/pages', 'tests', 'lib', 'config'];
@@ -14,7 +23,7 @@ const generateMockFiles = (count: number) => {
     const dir = directories[Math.floor(Math.random() * directories.length)];
     const ext = extensions[Math.floor(Math.random() * extensions.length)];
     const coverage = Math.random() * 100;
-    const hasError = Math.random() < 0.05; // 5% chance of error
+    const hasError = Math.random() < 0.05;
     
     return {
       file: `${dir}/component${i}${ext}`,
@@ -36,6 +45,58 @@ interface FileHeatmapProps {
   files: FileCoverage[];
 }
 
+// ECharts Component
+const EChartsComponent: React.FC<{ option: any; height?: number }> = ({ option, height = 400 }) => {
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  const chartInstance = useRef<any>(null);
+
+  useEffect(() => {
+    // Load ECharts from CDN
+    if (!window.echarts) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js';
+      script.onload = () => initChart();
+      document.head.appendChild(script);
+    } else {
+      initChart();
+    }
+
+    function initChart() {
+      if (chartRef.current && window.echarts) {
+        chartInstance.current = window.echarts.init(chartRef.current);
+        if (chartInstance.current) {
+          chartInstance.current.setOption(option);
+        }
+      }
+    }
+
+    return () => {
+      if (chartInstance.current) {
+        chartInstance.current.dispose();
+      }
+    };
+  }, [option]);
+
+  useEffect(() => {
+    if (chartInstance.current && option) {
+      chartInstance.current.setOption(option, true);
+    }
+  }, [option]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (chartInstance.current) {
+        chartInstance.current.resize();
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return <div ref={chartRef} style={{ height: `${height}px`, width: '100%' }} />;
+};
+
 const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
  
   const files = propFiles && propFiles.length > 0 ? propFiles : generateMockFiles(1247);
@@ -47,7 +108,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
   const [viewMode, setViewMode] = useState<'analytics' | 'heatmap' | 'list'>('analytics');
   const [sortBy, setSortBy] = useState<'coverage' | 'name' | 'directory'>('coverage');
   const [currentPage, setCurrentPage] = useState(1);
-  const [hoveredSquare, setHoveredSquare] = useState<string | null>(null);
 
   const [fileTypeFilter, setFileTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -203,6 +263,343 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
     };
   }, [files]);
 
+  // Chart options
+  const pieChartOption = useMemo(() => ({
+    title: {
+      text: 'Coverage Distribution',
+      left: 'center',
+      textStyle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#374151'
+      }
+    },
+    tooltip: {
+      trigger: 'item',
+      formatter: '{a} <br/>{b}: {c} files ({d}%)'
+    },
+    legend: {
+      orient: 'vertical',
+      right: 10,
+      top: 'center'
+    },
+    series: [{
+      name: 'Coverage',
+      type: 'pie',
+      radius: ['40%', '70%'],
+      center: ['40%', '50%'],
+      data: stats.coverageRanges.map(range => ({
+        value: range.count,
+        name: range.range,
+        itemStyle: { color: range.color }
+      })),
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowOffsetX: 0,
+          shadowColor: 'rgba(0, 0, 0, 0.5)'
+        }
+      }
+    }]
+  }), [stats.coverageRanges]);
+
+  const barChartOption = useMemo(() => ({
+    title: {
+      text: 'Coverage by Directory',
+      left: 'center',
+      textStyle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#374151'
+      }
+    },
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params: any) {
+        const data = params[0];
+        return `${data.name}<br/>Average Coverage: ${data.value.toFixed(1)}%<br/>Files: ${stats.directoryStats.find(d => d.directory === data.name)?.fileCount || 0}`;
+      }
+    },
+    xAxis: {
+      type: 'category',
+      data: stats.directoryStats.map(d => d.directory),
+      axisLabel: {
+        rotate: 45,
+        fontSize: 10
+      }
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Coverage %',
+      max: 100
+    },
+    series: [{
+      data: stats.directoryStats.map(d => ({
+        value: d.avgCoverage,
+        itemStyle: { color: getHeatmapColor(d.avgCoverage) }
+      })),
+      type: 'bar',
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowColor: 'rgba(0, 0, 0, 0.3)'
+        }
+      }
+    }]
+  }), [stats.directoryStats]);
+
+  const scatterOption = useMemo(() => {
+    const scatterData = files.map((file, index) => [
+      index,
+      file.coverage,
+      file.file,
+      file.error ? 1 : 0
+    ]);
+
+    return {
+      title: {
+        text: 'File Coverage Distribution',
+        left: 'center',
+        textStyle: {
+          fontSize: 16,
+          fontWeight: 'bold',
+          color: '#374151'
+        }
+      },
+      tooltip: {
+        trigger: 'item',
+        formatter: function(params: any) {
+          const [index, coverage, fileName, hasError] = params.data;
+          return `${fileName}<br/>Coverage: ${coverage.toFixed(1)}%${hasError ? '<br/>⚠ Has Error' : ''}`;
+        }
+      },
+      xAxis: {
+        type: 'value',
+        name: 'File Index',
+        nameLocation: 'middle',
+        nameGap: 30
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Coverage %',
+        nameLocation: 'middle',
+        nameGap: 40,
+        max: 100
+      },
+      series: [{
+        symbolSize: function(data: any) {
+          return data[3] ? 8 : 6; // Larger symbols for files with errors
+        },
+        data: scatterData,
+        type: 'scatter',
+        itemStyle: {
+          color: function(params: any) {
+            const coverage = params.data[1];
+            const hasError = params.data[3];
+            if (hasError) return '#ef4444';
+            return getHeatmapColor(coverage);
+          }
+        }
+      }]
+    };
+  }, [files]);
+
+  const lineChartOption = useMemo(() => {
+    // Create coverage trend data by grouping files
+    const sortedFiles = [...files].sort((a, b) => a.file.localeCompare(b.file));
+    const batchSize = Math.ceil(sortedFiles.length / 20);
+    const trendData = [];
+    
+    for (let i = 0; i < sortedFiles.length; i += batchSize) {
+      const batch = sortedFiles.slice(i, i + batchSize);
+      const avgCoverage = batch.reduce((sum, f) => sum + f.coverage, 0) / batch.length;
+      trendData.push({
+        name: `Batch ${Math.floor(i / batchSize) + 1}`,
+        value: avgCoverage
+      });
+    }
+
+    return {
+      title: {
+        text: 'Coverage Trend Across File Batches',
+        left: 'center',
+        textStyle: {
+          fontSize: 16,
+          fontWeight: 'bold',
+          color: '#374151'
+        }
+      },
+      tooltip: {
+        trigger: 'axis',
+        formatter: function(params: any) {
+          const data = params[0];
+          return `${data.name}<br/>Average Coverage: ${data.value.toFixed(1)}%`;
+        }
+      },
+      xAxis: {
+        type: 'category',
+        data: trendData.map(d => d.name),
+        axisLabel: {
+          rotate: 45
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Coverage %',
+        max: 100
+      },
+      series: [{
+        data: trendData.map(d => d.value),
+        type: 'line',
+        smooth: true,
+        lineStyle: {
+          color: '#3b82f6',
+          width: 3
+        },
+        itemStyle: {
+          color: '#3b82f6'
+        },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [{
+              offset: 0, color: 'rgba(59, 130, 246, 0.3)'
+            }, {
+              offset: 1, color: 'rgba(59, 130, 246, 0.1)'
+            }]
+          }
+        }
+      }]
+    };
+  }, [files]);
+
+  const radarOption = useMemo(() => {
+    const topExtensions = stats.extensionStats.slice(0, 6);
+    
+    return {
+      title: {
+        text: 'File Type Coverage Radar',
+        left: 'center',
+        textStyle: {
+          fontSize: 16,
+          fontWeight: 'bold',
+          color: '#374151'
+        }
+      },
+      tooltip: {
+        trigger: 'item'
+      },
+      radar: {
+        indicator: topExtensions.map(ext => ({
+          name: `.${ext.extension}`,
+          max: 100
+        })),
+        center: ['50%', '55%'],
+        radius: '70%'
+      },
+      series: [{
+        name: 'Coverage by Extension',
+        type: 'radar',
+        data: [{
+          value: topExtensions.map(ext => ext.avgCoverage),
+          name: 'Average Coverage',
+          itemStyle: {
+            color: '#8b5cf6'
+          },
+          areaStyle: {
+            color: 'rgba(139, 92, 246, 0.3)'
+          }
+        }]
+      }]
+    };
+  }, [stats.extensionStats]);
+  const histogramOption = useMemo(() => {
+    // Create histogram bins for coverage ranges
+    const bins = [
+      { range: '0-10%', min: 0, max: 10, color: '#ef4444' },
+      { range: '10-20%', min: 10, max: 20, color: '#f97316' },
+      { range: '20-30%', min: 20, max: 30, color: '#f59e0b' },
+      { range: '30-40%', min: 30, max: 40, color: '#eab308' },
+      { range: '40-50%', min: 40, max: 50, color: '#ca8a04' },
+      { range: '50-60%', min: 50, max: 60, color: '#a3a3a3' },
+      { range: '60-70%', min: 60, max: 70, color: '#84cc16' },
+      { range: '70-80%', min: 70, max: 80, color: '#65a30d' },
+      { range: '80-90%', min: 80, max: 90, color: '#22c55e' },
+      { range: '90-100%', min: 90, max: 100, color: '#16a34a' }
+    ];
+
+    const histogramData = bins.map(bin => {
+      const count = files.filter(file => 
+        file.coverage >= bin.min && file.coverage < bin.max
+      ).length;
+      return {
+        name: bin.range,
+        value: count,
+        color: bin.color
+      };
+    });
+
+    return {
+      title: {
+        text: 'Coverage Distribution Histogram',
+        left: 'center',
+        textStyle: {
+          fontSize: 16,
+          fontWeight: 'bold',
+          color: '#374151'
+        }
+      },
+      tooltip: {
+        trigger: 'axis',
+        formatter: function(params: any) {
+          const data = params[0];
+          const percentage = ((data.value / files.length) * 100).toFixed(1);
+          return `${data.name}<br/>Files: ${data.value} (${percentage}%)`;
+        }
+      },
+      xAxis: {
+        type: 'category',
+        data: histogramData.map(d => d.name),
+        axisLabel: {
+          rotate: 45,
+          fontSize: 10
+        },
+        name: 'Coverage Range',
+        nameLocation: 'middle',
+        nameGap: 60
+      },
+      yAxis: {
+        type: 'value',
+        name: 'Number of Files',
+        nameLocation: 'middle',
+        nameGap: 50
+      },
+      series: [{
+        data: histogramData.map(d => ({
+          value: d.value,
+          itemStyle: { 
+            color: d.color,
+            borderRadius: [4, 4, 0, 0]
+          }
+        })),
+        type: 'bar',
+        barWidth: '60%',
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: 'rgba(0, 0, 0, 0.3)',
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }
+        }
+      }]
+    };
+  }, [files]);
+
   const showFileError = (file: FileCoverage) => {
     setSelectedFile(file);
     setShowErrorModal(true);
@@ -279,10 +676,10 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 ? 'bg-orange-500 text-white shadow-md transform scale-105' 
                 : 'text-orange-600 hover:bg-orange-100 hover:scale-105'
             }`}
-            title="Heatmap view"
+            title="Charts view"
           >
-            <Grid size={16} />
-            <span className="text-sm font-medium">Heatmap</span>
+            <PieChart size={16} />
+            <span className="text-sm font-medium">Charts</span>
           </button>
           <button
             onClick={() => setViewMode('list')}
@@ -387,7 +784,7 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
               </div>
             </div>
 
-            {/* Directory Statistics */}
+     
             <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200 hover:shadow-lg transition-all duration-300">
               <h4 className="text-lg font-semibold text-purple-700 mb-4 flex items-center gap-2">
                 <Grid className="w-5 h-5" />
@@ -431,7 +828,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
         </div>
       )}
 
-      {/* Controls for Heatmap and List views */}
       {(viewMode === 'heatmap' || viewMode === 'list') && (
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="flex-1">
@@ -457,7 +853,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
             <option value="directory">Sort by Directory</option>
           </select>
 
-          {/* File type and status filter in List view */}
           {viewMode === 'list' && (
             <div className="flex gap-2">
               <select
@@ -485,80 +880,33 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
           )}
         </div>
       )}
-
-      {/* Enhanced Heatmap View */}
       {viewMode === 'heatmap' && (
-        <div className="space-y-6">
-          <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200">
-            {/* File grid with better visualization */}
-            <div className="grid gap-2" style={{ 
-              gridTemplateColumns: 'repeat(auto-fill, minmax(24px, 1fr))',
-              maxWidth: '100%'
-            }}>
-              {filteredFiles.map((file, index) => (
-                <div
-                  key={file.file}
-                  className="group relative aspect-square rounded-md cursor-pointer transition-all duration-200 hover:scale-150 hover:z-10 hover:shadow-lg"
-                  style={{ backgroundColor: getHeatmapColor(file.coverage) }}
-                  onClick={() => file.error && showFileError(file)}
-                  onMouseEnter={() => setHoveredSquare(file.file)}
-                  onMouseLeave={() => setHoveredSquare(null)}
-                >
-                  {file.error && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <AlertCircle size={12} className="text-white" />
-                    </div>
-                  )}
-                  
-                  {/* Enhanced tooltip */}
-                  {hoveredSquare === file.file && (
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50">
-                      <div className="bg-black text-white text-xs rounded-lg p-3 shadow-lg min-w-max">
-                        <div className="font-semibold">{getFileName(file.file)}</div>
-                        <div className="text-gray-300">{getDirectory(file.file)}</div>
-                        <div className="font-bold mt-1">{file.coverage.toFixed(1)}% coverage</div>
-                        {file.error && (
-                          <div className="text-red-300 mt-1">⚠ Has error</div>
-                        )}
-                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-black"></div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+        <div className="space-y-8">
+       
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SpotlightCard className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl  hover:shadow-lg transition-all duration-300"
+            spotlightColor='rgba(59, 130, 246, 0.44)'
+            >
+
+              <EChartsComponent option={pieChartOption} height={350} />
+            </SpotlightCard>
+            <SpotlightCard className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200 hover:shadow-lg transition-all duration-300"
+            spotlightColor='rgba(34, 197, 94, 0.4)'>
+              <EChartsComponent option={barChartOption} height={350} />
+            </SpotlightCard>
           </div>
-          
-          {/* Enhanced Legend */}
-          <div className="flex flex-wrap items-center justify-center gap-6 text-sm">
-            {[
-              { range: '0-20%', color: '#ef4444', label: 'Critical' },
-              { range: '20-40%', color: '#f97316', label: 'Low' },
-              { range: '40-60%', color: '#eab308', label: 'Medium' },
-              { range: '60-80%', color: '#84cc16', label: 'Good' },
-              { range: '80-100%', color: '#22c55e', label: 'Excellent' }
-            ].map(({ range, color, label }) => (
-              <div key={range} className="flex items-center gap-2 hover:scale-110 transition-transform duration-200">
-                <div 
-                  className="w-4 h-4 rounded-md shadow-sm"
-                  style={{ backgroundColor: color }}
-                />
-                <span className="font-medium text-gray-700">{label}</span>
-                <span className="text-gray-500">({range})</span>
-              </div>
-            ))}
+
+          {/* Second Row - Scatter and Line Chart */}
+          <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+            <SpotlightCard className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200 hover:shadow-lg transition-all duration-300"
+            spotlightColor='rgba(126, 34, 206, 0.18)'>
+              <EChartsComponent option={scatterOption} height={350} />
+            </SpotlightCard>
           </div>
-          
-          <div className="text-center text-sm text-gray-500 bg-gray-50 py-3 rounded-lg">
-            <strong>Showing {filteredFiles.length}</strong> of <strong>{files.length}</strong> files
-            {searchQuery && ` matching "${searchQuery}"`}
-            <br />
-            <span className="text-xs">Hover over squares for details • Click error icons for details</span>
-          </div>
+
         </div>
       )}
 
-      {/* Enhanced List View */}
       {viewMode === 'list' && (
         <div className="space-y-4">
           <div className="bg-gray-50 rounded-xl overflow-hidden shadow-sm">

@@ -540,12 +540,12 @@ const RepositoriesPage = () => {
                       </div>
                       <div className="mt-4 flex justify-between items-center gap-2">
                         {typeof repo.coverage === 'number' && (
-                          <span
-                            className="text-xs font-semibold px-2 py-1 rounded-full bg-gradient-to-r from-green-400 to-green-600 text-white"
+                            <span
+                            className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 py-1 px-3 rounded-md transition-colors border border-blue-100"
                             title={`Coverage: ${repo.coverage.toFixed(1)}%`}
-                          >
+                            >
                             Coverage: {repo.coverage.toFixed(1)}%
-                          </span>
+                            </span>
                         )}
                         <a
                           href={repo.html_url}
@@ -598,7 +598,6 @@ const RepositoriesPage = () => {
                           <td className="px-4 py-3 text-sm font-medium text-orange-600 max-w-[180px] truncate" title={repo.name}>
                             {repo.name}
                           </td>
-                          {/* Description with brownish shade */}
                           <td className="px-4 py-3 text-sm text-[#8B5C2A] hidden md:table-cell w-[30%]">
                             <div className="line-clamp-1" title={repo.description || 'No description provided'}>
                               {repo.description || 'No description provided'}
@@ -678,21 +677,17 @@ const RepositoriesPage = () => {
   );
 };
 
-// Helper function to format dates
 function formatDate(dateString: string | undefined) {
   if (!dateString) return 'N/A';
   
   try {
-    // Parse the date string
     const date = new Date(dateString);
     
-    // Check if date is valid
     if (isNaN(date.getTime())) {
       console.log('Invalid date:', dateString);
       return 'N/A';
     }
     
-    // Format the date nicely
     return new Intl.DateTimeFormat('en-US', {
       day: '2-digit',
       month: 'short',
