@@ -49,6 +49,7 @@ func main() {
 	protected.DELETE("/coverage/jobs/:job_id", handlers.CancelJob)
 	protected.GET("/coverage/metrics", handlers.GetCoverageMetrics)
 	protected.GET("/coverage/recent-activity", handlers.GetRecentActivity)
+	protected.GET("/coverage/scanned-repos", handlers.GetUserScannedRepositories)
 
 	handlers.CleanupOldJobs()
 

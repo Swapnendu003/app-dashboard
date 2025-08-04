@@ -6,6 +6,7 @@ import withAuth from "@/components/withAuth";
 import { getUserRepositories, refreshRepositories } from "@/services/api";
 import { AlertCircle, Folder, ChevronLeft, ChevronRight, LayoutGrid, LayoutList, ChevronDown, BarChart2, RefreshCw } from 'lucide-react';
 import CoverageTab from './coverage-tab';
+import { useSearchParams } from "next/navigation";
 
 
 const getLanguageColor = (language: string): string => {
@@ -102,6 +103,7 @@ const RepositoriesPage = () => {
   const isLoadingRef = useRef<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [dataSource, setDataSource] = useState<'database' | 'github'>('database');
+  const searchParams = useSearchParams();
 
   const fetchRepositories = async (skip = 0, limit = pagination.pageSize, append = false, search = '') => {
     // Prevent duplicate requests when already loading
@@ -276,6 +278,13 @@ const RepositoriesPage = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const repoParam = searchParams?.get('repo');
+    if (repoParam) {
+      setActiveTab('coverage');
+    }
+  }, [searchParams]);
 
   const handleLoadMore = async () => {
     const newSkip = pagination.skip + pagination.limit;

@@ -1,6 +1,3 @@
-
-
-
 'use client';
 
 declare global {
@@ -11,6 +8,7 @@ declare global {
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Search, AlertCircle, Grid, List, BarChart3, TrendingUp, FileText, Zap, PieChart } from 'lucide-react';
+import { BorderBeam } from "@/components/magicui/border-beam";
 
 import SpotlightCard from '../SpotLightCard';
 import AnimatedList from '../AnimatedList';
@@ -611,10 +609,10 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
       return (
         <div className="flex items-center justify-between w-full">
           <div className="flex-1 min-w-0">
-            <div className="font-mono text-sm text-purple-800 truncate" title={dir.directory}>
+            <div className="font-mono text-sm text-orange-800 truncate" title={dir.directory}>
               {dir.directory}
             </div>
-            <div className="text-xs text-purple-600">
+            <div className="text-xs text-orange-600">
               {dir.fileCount} files
             </div>
           </div>
@@ -712,6 +710,12 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 </div>
                 <FileText className="w-8 h-8 text-blue-500" />
               </div>
+              <BorderBeam
+                duration={4}
+                size={300}
+                reverse
+                className="from-transparent via-blue-400 to-transparent"
+              />
             </SpotlightCard>
             <SpotlightCard
               className="custom-spotlight-card bg-gradient-to-br from-green-100 to-green-50 border border-green-200"
@@ -724,6 +728,12 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 </div>
                 <Zap className="w-8 h-8 text-green-500" />
               </div>
+              <BorderBeam
+                duration={4}
+                size={300}
+                reverse
+                className="from-transparent via-green-400 to-transparent"
+              />
             </SpotlightCard>
             <SpotlightCard
               className="custom-spotlight-card bg-gradient-to-br from-red-100 to-red-50 border border-red-200"
@@ -736,6 +746,12 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 </div>
                 <AlertCircle className="w-8 h-8 text-red-500" />
               </div>
+              <BorderBeam
+                duration={4}
+                size={300}
+                reverse
+                className="from-transparent via-red-400 to-transparent"
+              />
             </SpotlightCard>
             <SpotlightCard
               className="custom-spotlight-card bg-gradient-to-br from-orange-100 to-orange-50 border border-orange-200"
@@ -748,6 +764,12 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 </div>
                 <BarChart3 className="w-8 h-8 text-orange-500" />
               </div>
+              <BorderBeam
+                duration={4}
+                size={300}
+                reverse
+                className="from-transparent via-orange-400 to-transparent"
+              />
             </SpotlightCard>
           </div>
           
@@ -784,9 +806,8 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
               </div>
             </div>
 
-     
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200 hover:shadow-lg transition-all duration-300">
-              <h4 className="text-lg font-semibold text-purple-700 mb-4 flex items-center gap-2">
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 hover:shadow-lg transition-all duration-300">
+              <h4 className="text-lg font-semibold text-orange-700 mb-4 flex items-center gap-2">
                 <Grid className="w-5 h-5" />
                 Top Directories
               </h4>
@@ -795,7 +816,7 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 showGradients={true}
                 enableArrowNavigation={true}
                 displayScrollbar={true}
-                itemClassName="bg-white hover:bg-purple-50 border border-purple-100 text-purple-900"
+                itemClassName="bg-white hover:bg-orange-50 border border-orange-100 text-orange-900"
                 onItemSelect={undefined}
               />
             </div>
@@ -884,16 +905,51 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
         <div className="space-y-8">
        
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SpotlightCard className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl  hover:shadow-lg transition-all duration-300"
-            spotlightColor='rgba(59, 130, 246, 0.44)'
-            >
+            {/* Coverage Distribution Chart */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300">
+              <h4 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Coverage Distribution
+              </h4>
+              <div className="space-y-3">
+                {stats.coverageRanges.map(({ range, color, count }) => {
+                  const percentage = (count / files.length) * 100;
+                  return (
+                    <div key={range} className="group hover:bg-white hover:p-2 hover:rounded-lg transition-all duration-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-sm font-medium text-gray-700">{range}</span>
+                        <span className="text-sm text-gray-600">{count} files ({percentage.toFixed(1)}%)</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                        <div 
+                          className="h-3 rounded-full transition-all duration-500 hover:brightness-110"
+                          style={{ 
+                            backgroundColor: color,
+                            width: `${percentage}%`,
+                            boxShadow: `0 0 10px ${color}40`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
 
-              <EChartsComponent option={pieChartOption} height={350} />
-            </SpotlightCard>
-            <SpotlightCard className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200 hover:shadow-lg transition-all duration-300"
-            spotlightColor='rgba(34, 197, 94, 0.4)'>
-              <EChartsComponent option={barChartOption} height={350} />
-            </SpotlightCard>
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 hover:shadow-lg transition-all duration-300">
+              <h4 className="text-lg font-semibold text-orange-700 mb-4 flex items-center gap-2">
+                <Grid className="w-5 h-5" />
+                Top Directories
+              </h4>
+              <AnimatedList
+                items={topDirectoryItems}
+                showGradients={true}
+                enableArrowNavigation={true}
+                displayScrollbar={true}
+                itemClassName="bg-white hover:bg-orange-50 border border-orange-100 text-orange-900"
+                onItemSelect={undefined}
+              />
+            </div>
           </div>
 
           {/* Second Row - Scatter and Line Chart */}

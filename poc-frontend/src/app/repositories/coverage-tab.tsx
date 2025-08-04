@@ -14,6 +14,7 @@ import {
 } from '@/components/CoverageVisualizations';
 import SearchableDropdown from "@/components/SearchableDropdown";
 import ActiveJobsList from "@/components/ActiveJobsList";
+import { useSearchParams } from "next/navigation";
 
 interface CoverageTabProps {
   repositories: Repository[];
@@ -65,9 +66,21 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
   const prevSearchQueryRef = useRef<string>('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
-
-  // Add a concurrency map to track loading state per repo
   const [scanLoadingMap, setScanLoadingMap] = useState<Record<string, boolean>>({});
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const repoParam = searchParams?.get('repo');
+    if (repoParam && repoParam !== selectedRepo) {
+      setSelectedRepo(repoParam);
+      setCoverageResult(null);
+      setCoverageError(null);
+      setActiveTab('history');
+      fetchCoverageHistory(repoParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, repositories]);
 
   useEffect(() => {
     const options = searchResults.map(repo => ({
@@ -297,6 +310,12 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
     setCoverageError(null);
     if (repoUrl) {
       fetchCoverageHistory(repoUrl);
+      // Optionally update the URL param for repo selection
+      if (window && window.history && window.location) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('repo', repoUrl);
+        window.history.replaceState({}, '', url.toString());
+      }
     } else {
       setCoverageHistory([]);
       setCoverageTrends([]);

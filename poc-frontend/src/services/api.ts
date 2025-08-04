@@ -274,4 +274,8 @@ export const getDashboardMetrics = async () => {
   return api.get('/api/dashboard/metrics');
 };
 
+export const getUserScannedRepositories = async () => {
+  return api.get('/api/coverage/scanned-repos');
+};
+
 export default api;

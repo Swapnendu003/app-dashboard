@@ -768,7 +768,6 @@ func parseCoverageReport(output string, logPrefix string) (CoverageResponse, err
 	return CoverageResponse{TotalCoverage: totalCov, Files: files}, nil
 }
 
-// Estimate Python coverage by analyzing files
 func EstimatePythonCoverage(dir string, logPrefix string) (CoverageResponse, error) {
 	log.Printf("INFO: %s Estimating Python coverage by analyzing files", logPrefix)
 	var pyFiles []string

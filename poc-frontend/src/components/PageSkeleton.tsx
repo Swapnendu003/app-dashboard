@@ -34,6 +34,9 @@ const PageSkeleton: React.FC<PageSkeletonProps> = ({
     } else if (pathname === '/settings') {
       setActiveTab('settings');
     }
+    else if (pathname === '/adhoc-coverage') {
+      setActiveTab('tests');
+    }
   }, [pathname]);
 
   useEffect(() => {
@@ -65,6 +68,9 @@ const PageSkeleton: React.FC<PageSkeletonProps> = ({
         break;
       case 'repositories':
         router.push('/repositories');
+        break;
+      case 'tests':
+        router.push('/adhoc-coverage');
         break;
       case 'settings':
         router.push('/settings');

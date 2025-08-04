@@ -242,3 +242,65 @@ func GetCoverageTrends(c *gin.Context) {
 
 	c.JSON(http.StatusOK, trends)
 }
+
+func GetUserScannedRepositories(c *gin.Context) {
+	userIDStr, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	db, err := config.ConnectDB()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database connection failed"})
+		return
+	}
+
+	collection := db.Collection("coverage_history")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cursor, err := collection.Find(ctx, bson.M{"user_id": userID}, options.Find().SetSort(bson.M{"timestamp": -1}))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to query database"})
+		return
+	}
+	defer cursor.Close(ctx)
+
+	type RepoInfo struct {
+		Repository  string    `json:"repository"`
+		LastScanned time.Time `json:"last_scanned"`
+		TotalScans  int       `json:"total_scans"`
+	}
+
+	repoMap := make(map[string]RepoInfo)
+
+	for cursor.Next(ctx) {
+		var history models.CoverageHistory
+		if err := cursor.Decode(&history); err == nil {
+			lastScanned := history.Timestamp
+			if len(history.ScanHistory) > 0 {
+				lastScanned = history.ScanHistory[len(history.ScanHistory)-1].Timestamp
+			}
+	
+			if _, exists := repoMap[history.Repository]; !exists {
+				repoMap[history.Repository] = RepoInfo{
+					Repository:  history.Repository,
+					LastScanned: lastScanned,
+					TotalScans:  history.NumberOfScans,
+				}
+			}
+		}
+	}
+
+	repos := make([]RepoInfo, 0, len(repoMap))
+	for _, v := range repoMap {
+		repos = append(repos, v)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"repositories": repos})
+}

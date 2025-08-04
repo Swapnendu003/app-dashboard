@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo/options"
-
+	"github.com/yourusername/backend/javautils"
 	"github.com/gin-gonic/gin"
 	"github.com/yourusername/backend/config"
 	"github.com/yourusername/backend/goutils"
@@ -527,7 +527,6 @@ func GetCoverageJobStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, jobStatus)
 }
 
-// Main coverage scanning function (refactored to use goutils)
 func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, error) {
 	logPrefix := fmt.Sprintf("[Repo: %s, Branch: %s]", req.RepoURL, req.Branch)
 	log.Printf("INFO: %s Starting optimized coverage scan", logPrefix)
@@ -561,9 +560,9 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 	}
 	log.Printf("INFO: %s Successfully cloned repository to %s", logPrefix, tmpDir)
 
-	// Analyze project structure
-	var totalGoFiles, totalPyFiles, totalJSFiles, totalTSFiles int
-	var totalGoTestFiles, totalPyTestFiles, totalJSTestFiles int
+	// MODIFIED: Analyze project structure (added Java)
+	var totalGoFiles, totalPyFiles, totalJSFiles, totalTSFiles, totalJavaFiles int
+	var totalGoTestFiles, totalPyTestFiles, totalJSTestFiles, totalJavaTestFiles int
 
 	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
@@ -598,17 +597,29 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 			} else {
 				totalTSFiles++
 			}
+		case ".java":  
+			if isJavaTestFile(filename) {
+				totalJavaTestFiles++
+			} else {
+				totalJavaFiles++
+			}
 		}
 		return nil
 	})
 
 	totalJSFilesTotal := totalJSFiles + totalTSFiles
-	log.Printf("INFO: %s Repository contains %d Go files (%d tests), %d Python files (%d tests), and %d JS/TS files (%d tests)",
-		logPrefix, totalGoFiles, totalGoTestFiles, totalPyFiles, totalPyTestFiles, totalJSFilesTotal, totalJSTestFiles)
+	// MODIFIED: Updated log message to include Java
+	log.Printf("INFO: %s Repository contains %d Go files (%d tests), %d Python files (%d tests), %d JS/TS files (%d tests), and %d Java files (%d tests)",
+		logPrefix, totalGoFiles, totalGoTestFiles, totalPyFiles, totalPyTestFiles, totalJSFilesTotal, totalJSTestFiles, totalJavaFiles, totalJavaTestFiles)
 
 	// Diagnose JavaScript project if present
 	if totalJSFilesTotal > 0 {
 		jsutils.DiagnoseJSProject(tmpDir, logPrefix)
+	}
+
+	// ADDED: Diagnose Java project if present
+	if totalJavaFiles > 0 {
+		javautils.DiagnoseJavaProject(tmpDir, logPrefix)
 	}
 
 	// Check for custom coverage script
@@ -630,11 +641,20 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 	var coverageFound bool
 	projectType := detectProjectType(tmpDir, logPrefix)
 
-	// Determine if project is mixed (multiple languages)
+	// MODIFIED: Determine if project is mixed (added Java combinations)
 	isGoAndPython := totalGoFiles > 0 && totalPyFiles > 0
 	isGoAndJS := totalGoFiles > 0 && totalJSFilesTotal > 0
+	isGoAndJava := totalGoFiles > 0 && totalJavaFiles > 0
 	isPythonAndJS := totalPyFiles > 0 && totalJSFilesTotal > 0
-	isTripleLanguage := totalGoFiles > 0 && totalPyFiles > 0 && totalJSFilesTotal > 0
+	isPythonAndJava := totalPyFiles > 0 && totalJavaFiles > 0
+	isJSAndJava := totalJSFilesTotal > 0 && totalJavaFiles > 0
+	isMultiLanguage := (isGoAndPython || isGoAndJS || isGoAndJava || 
+						isPythonAndJS || isPythonAndJava || isJSAndJava ||
+						(totalGoFiles > 0 && totalPyFiles > 0 && totalJSFilesTotal > 0) ||
+						(totalGoFiles > 0 && totalPyFiles > 0 && totalJavaFiles > 0) ||
+						(totalGoFiles > 0 && totalJSFilesTotal > 0 && totalJavaFiles > 0) ||
+						(totalPyFiles > 0 && totalJSFilesTotal > 0 && totalJavaFiles > 0) ||
+						(totalGoFiles > 0 && totalPyFiles > 0 && totalJSFilesTotal > 0 && totalJavaFiles > 0))
 
 	// Custom script execution (highest priority)
 	if !coverageFound && script != "" {
@@ -658,16 +678,26 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 		}
 	}
 
-	// Handle mixed language projects
-	if !coverageFound && (isTripleLanguage || isGoAndPython || isGoAndJS || isPythonAndJS) {
+	// MODIFIED: Handle mixed language projects (updated call)
+	if !coverageFound && isMultiLanguage {
 		log.Printf("INFO: %s Detected multi-language project, scanning all languages", logPrefix)
 		resp, coverageFound = handleMixedLanguageProject(tmpDir, logPrefix,
-			totalGoFiles, totalPyFiles, totalJSFilesTotal)
+			totalGoFiles, totalPyFiles, totalJSFilesTotal, totalJavaFiles)
 	}
 
 	// Single language project handling
 	if !coverageFound {
 		switch projectType {
+		case "java":  // ADDED JAVA CASE
+			log.Printf("INFO: %s Running Java coverage (primary language)", logPrefix)
+			javaResp, javaErr := javautils.RunJavaCoverage(tmpDir, logPrefix)
+			if javaErr == nil && javaResp.TotalCoverage > 0 {
+				resp = convertJavaResponse(javaResp)
+				coverageFound = true
+				log.Printf("INFO: %s Java coverage succeeded: %.2f%%", logPrefix, resp.TotalCoverage)
+			} else {
+				log.Printf("WARNING: %s Java coverage failed: %v", logPrefix, javaErr)
+			}
 		case "javascript":
 			log.Printf("INFO: %s Running JavaScript coverage (primary language)", logPrefix)
 			jsResp, jsErr := jsutils.RunJSCoverage(tmpDir, logPrefix)
@@ -700,8 +730,14 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 					log.Printf("WARNING: %s Go coverage failed: %v", logPrefix, goErr)
 				}
 			} else {
-				// Try other languages as fallback
-				if totalJSFilesTotal > 0 {
+				// MODIFIED: Try other languages as fallback (added Java)
+				if totalJavaFiles > 0 {
+					log.Printf("INFO: %s No Go code found, trying Java fallback", logPrefix)
+					if javaResp, javaErr := javautils.EstimateJavaCoverage(tmpDir, logPrefix); javaErr == nil {
+						resp = convertJavaResponse(javaResp)
+						coverageFound = true
+					}
+				} else if totalJSFilesTotal > 0 {
 					log.Printf("INFO: %s No Go code found, trying JavaScript fallback", logPrefix)
 					if jsResp, jsErr := jsutils.EstimateJSCoverage(tmpDir, logPrefix); jsErr == nil {
 						resp = convertJSResponse(jsResp)
@@ -723,12 +759,21 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 		}
 	}
 
-	// Final fallback attempts
+	// MODIFIED: Final fallback attempts (added Java)
 	if !coverageFound {
 		log.Printf("WARNING: %s Primary methods failed, trying final fallbacks", logPrefix)
 
+		// Try Java if not already tried
+		if totalJavaFiles > 0 && projectType != "java" {
+			if javaResp, javaErr := javautils.EstimateJavaCoverage(tmpDir, logPrefix); javaErr == nil {
+				resp = convertJavaResponse(javaResp)
+				coverageFound = true
+				log.Printf("INFO: %s Java estimation fallback succeeded: %.2f%%", logPrefix, resp.TotalCoverage)
+			}
+		}
+
 		// Try JavaScript if not already tried
-		if totalJSFilesTotal > 0 && projectType != "javascript" {
+		if !coverageFound && totalJSFilesTotal > 0 && projectType != "javascript" {
 			if jsResp, jsErr := jsutils.EstimateJSCoverage(tmpDir, logPrefix); jsErr == nil {
 				resp = convertJSResponse(jsResp)
 				coverageFound = true
@@ -850,12 +895,14 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 }
 
 // Helper function to handle mixed language projects
-func handleMixedLanguageProject(tmpDir, logPrefix string, totalGoFiles, totalPyFiles, totalJSFiles int) (CoverageResponse, bool) {
+// 
+
+func handleMixedLanguageProject(tmpDir, logPrefix string, totalGoFiles, totalPyFiles, totalJSFiles, totalJavaFiles int) (CoverageResponse, bool) {
 	log.Printf("INFO: %s Processing mixed language project", logPrefix)
 
 	var responses []CoverageResponse
 	var weights []float64
-	var totalFiles = totalGoFiles + totalPyFiles + totalJSFiles
+	var totalFiles = totalGoFiles + totalPyFiles + totalJSFiles + totalJavaFiles
 
 	// Try Go coverage
 	if totalGoFiles > 0 {
@@ -871,6 +918,28 @@ func handleMixedLanguageProject(tmpDir, logPrefix string, totalGoFiles, totalPyF
 			}
 		} else {
 			log.Printf("WARNING: %s No Go project detected", logPrefix)
+		}
+	}
+
+	// ADDED: Try Java coverage
+	if totalJavaFiles > 0 {
+		log.Printf("INFO: %s Attempting Java coverage analysis", logPrefix)
+		javaResp, javaErr := javautils.RunJavaCoverage(tmpDir, logPrefix)
+		if javaErr == nil && javaResp.TotalCoverage > 0 {
+			responses = append(responses, convertJavaResponse(javaResp))
+			weights = append(weights, float64(totalJavaFiles)/float64(totalFiles))
+			log.Printf("INFO: %s Java coverage: %.2f%% (weight: %.2f)",
+				logPrefix, javaResp.TotalCoverage, float64(totalJavaFiles)/float64(totalFiles))
+		} else {
+			log.Printf("WARNING: %s Java coverage failed: %v, trying estimation", logPrefix, javaErr)
+			if javaEstResp, estErr := javautils.EstimateJavaCoverage(tmpDir, logPrefix); estErr == nil && javaEstResp.TotalCoverage > 0 {
+				responses = append(responses, convertJavaResponse(javaEstResp))
+				weights = append(weights, float64(totalJavaFiles)/float64(totalFiles))
+				log.Printf("INFO: %s Java coverage (estimated): %.2f%% (weight: %.2f)",
+					logPrefix, javaEstResp.TotalCoverage, float64(totalJavaFiles)/float64(totalFiles))
+			} else {
+				log.Printf("ERROR: %s Java estimation also failed: %v", logPrefix, estErr)
+			}
 		}
 	}
 
@@ -946,6 +1015,8 @@ func handleMixedLanguageProject(tmpDir, logPrefix string, totalGoFiles, totalPyF
 		Files:         allFiles,
 	}, true
 }
+
+
 
 // Conversion functions for different language responses
 func convertGoResponse(goResp goutils.GoCoverageResponse) CoverageResponse {
@@ -1046,10 +1117,28 @@ func isJSTestFile(filename string) bool {
 		strings.HasSuffix(lowerName, ".spec.tsx")
 }
 
+
+
 func detectProjectType(dir string, logPrefix string) string {
 	log.Printf("INFO: %s Analyzing project structure for primary language", logPrefix)
 
-	// Check for JavaScript project first
+	// ADDED: Check for Java project first
+	if javautils.DetectJavaProject(dir) {
+		javaProjectInfo := javautils.DetectJavaProjectInfo(dir, logPrefix)
+
+		// Prioritize certain Java project types
+		if javaProjectInfo.Type == javautils.SpringBootProject ||
+			javaProjectInfo.Type == javautils.QuarkusProject ||
+			javaProjectInfo.Type == javautils.MicronautProject ||
+			javaProjectInfo.Type == javautils.MavenProject ||
+			javaProjectInfo.Type == javautils.GradleProject {
+			log.Printf("INFO: %s Detected Java project type: %v with build tool: %v", 
+				logPrefix, javaProjectInfo.Type, javaProjectInfo.BuildTool)
+			return "java"
+		}
+	}
+
+	// Check for JavaScript project
 	if jsutils.DetectJSProject(dir) {
 		jsProjectInfo := jsutils.DetectJSProjectInfo(dir, logPrefix)
 
@@ -1086,12 +1175,13 @@ func detectProjectType(dir string, logPrefix string) string {
 		}
 	}
 
-	// Fallback to file counting analysis
+	// MODIFIED: Fallback to file counting analysis (added Java)
 	goFileCount := 0
 	pythonFileCount := 0
 	jsFileCount := 0
+	javaFileCount := 0
 
-	// File counting logic (simplified version of original)
+	// File counting logic
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return err
@@ -1111,23 +1201,39 @@ func detectProjectType(dir string, logPrefix string) string {
 			if !isJSTestFile(info.Name()) {
 				jsFileCount++
 			}
+		case ".java":  // ADDED JAVA CASE
+			if !strings.Contains(strings.ToLower(info.Name()), "test") {
+				javaFileCount++
+			}
 		}
 		return nil
 	})
 
-	log.Printf("INFO: %s File counts - Go: %d, Python: %d, JS/TS: %d",
-		logPrefix, goFileCount, pythonFileCount, jsFileCount)
+	log.Printf("INFO: %s File counts - Go: %d, Python: %d, JS/TS: %d, Java: %d",
+		logPrefix, goFileCount, pythonFileCount, jsFileCount, javaFileCount)
 
-	// Determine primary language based on file counts
-	if jsFileCount > goFileCount && jsFileCount > pythonFileCount {
-		return "javascript"
-	} else if goFileCount > pythonFileCount {
-		return "go"
-	} else if pythonFileCount > 0 {
-		return "python"
+	// MODIFIED: Determine primary language based on file counts
+	maxCount := goFileCount
+	primaryLang := "go"
+
+	if pythonFileCount > maxCount {
+		maxCount = pythonFileCount
+		primaryLang = "python"
+	}
+	if jsFileCount > maxCount {
+		maxCount = jsFileCount
+		primaryLang = "javascript"
+	}
+	if javaFileCount > maxCount {
+		maxCount = javaFileCount
+		primaryLang = "java"
 	}
 
-	return "unknown"
+	if maxCount == 0 {
+		return "unknown"
+	}
+
+	return primaryLang
 }
 
 // Cleanup functions (unchanged)
@@ -1213,4 +1319,40 @@ func cleanupInMemoryCache() {
 	}
 
 	log.Printf("In-memory job cache size: %d", len(completedJobs))
+}
+func convertJavaResponse(javaResp javautils.JavaCoverageResponse) CoverageResponse {
+	var files []FileCoverage
+	for _, f := range javaResp.Files {
+		status := "Success"
+		if f.Error != "" {
+			status = "Failure"
+		}
+		files = append(files, FileCoverage{
+			File:     f.File,
+			Coverage: f.Coverage,
+			Error:    f.Error,
+			Status:   status,
+		})
+	}
+
+	return CoverageResponse{
+		TotalCoverage: javaResp.TotalCoverage,
+		Files:         files,
+		ID:            javaResp.ID,
+		Repository:    javaResp.Repository,
+		Branch:        javaResp.Branch,
+		Timestamp:     javaResp.Timestamp,
+		CommitHash:    javaResp.CommitHash,
+	}
+}
+
+// ADDED: Java test file helper function
+func isJavaTestFile(filename string) bool {
+	lowerName := strings.ToLower(filename)
+	return strings.Contains(lowerName, "test") ||
+		strings.Contains(lowerName, "/test/") ||
+		strings.HasSuffix(lowerName, "test.java") ||
+		strings.HasSuffix(lowerName, "tests.java") ||
+		strings.Contains(lowerName, "testcase") ||
+		strings.Contains(lowerName, "spec.java")
 }

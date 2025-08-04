@@ -52,10 +52,19 @@ import {
   getCoverageTrends,
   getCoverageMetrics,
   getDashboardMetrics,
+  getUserScannedRepositories,
 } from "@/services/api";
 import ActivityGraph from "@/components/ActivityGraph";
 import SpotlightCard from "@/components/SpotLightCard";
 import { BorderBeam } from "@/components/magicui/border-beam";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import AnimatedList from "@/components/AnimatedList";
+import { useRouter } from "next/navigation";
 
 const ProfessionalDashboard = () => {
   const [user, setUser] = useState<any>(null);
@@ -86,6 +95,11 @@ const ProfessionalDashboard = () => {
   const [selectedRepo, setSelectedRepo] = useState<string>("");
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [dashboardLoading, setDashboardLoading] = useState<boolean>(true);
+  const [scannedReposModalOpen, setScannedReposModalOpen] = useState(false);
+  const [scannedReposLoading, setScannedReposLoading] = useState(false);
+  const [scannedRepos, setScannedRepos] = useState<any[]>([]);
+  const [scannedReposError, setScannedReposError] = useState<string | null>(null);
+  const router = useRouter();
 
   // Generate year options: last 5 years plus "last year" option
   const currentYear = new Date().getFullYear();
@@ -301,6 +315,32 @@ const ProfessionalDashboard = () => {
     []
   ) || [];
 
+  const handleRecentScansClick = async () => {
+    setScannedReposModalOpen(true);
+    setScannedReposLoading(true);
+    setScannedReposError(null);
+    try {
+      const response = await getUserScannedRepositories();
+      setScannedRepos(response.data.repositories || []);
+    } catch (err: any) {
+      setScannedReposError("Failed to fetch scanned repositories");
+    } finally {
+      setScannedReposLoading(false);
+    }
+  };
+
+  const handleRepoBarClick = (data: any) => {
+    if (data && data.activeLabel) {
+      // Find the full repo URL from dashboardData.coverage_by_repo
+      const repoObj = dashboardData?.coverage_by_repo?.find(
+        (item: any) => item.repo?.split('/').pop() === data.activeLabel
+      );
+      if (repoObj && repoObj.repo) {
+        router.push(`/repositories?repo=${encodeURIComponent(repoObj.repo)}`);
+      }
+    }
+  };
+
   return (
     <PageSkeleton
       title="Dashboard"
@@ -319,7 +359,7 @@ const ProfessionalDashboard = () => {
         {loading ? (
           <div className="w-full">
             {/* Welcome message skeleton */}
-            <div className="bg-gradient-to-r from-orange-100 to-orange-50 rounded-lg p-6 mb-8 border-l-4 border-orange-400">
+            <div className="bg-gradient-to-r from-orange-100 to-orange-50 rounded-lg p-6 mb-8 border border-orange-400">
               <div className="h-6 w-1/3 bg-orange-200 rounded mb-2 animate-pulse"></div>
               <div className="h-4 w-1/2 bg-orange-100 rounded animate-pulse"></div>
             </div>
@@ -362,7 +402,7 @@ const ProfessionalDashboard = () => {
         ) : (
           <>
             {/* Welcome Section */}
-            <div className="bg-gradient-to-r from-orange-100 to-orange-50 rounded-lg p-6 mb-8 border-l-4 border-orange-400">
+            <div className="bg-gradient-to-r from-orange-100 to-orange-50 rounded-lg p-6 mb-8 border border-orange-400">
               <h2 className="text-xl font-semibold text-gray-900 mb-2">
                 Welcome, {user?.name || "Developer"}!
               </h2>
@@ -370,6 +410,7 @@ const ProfessionalDashboard = () => {
                 Your personalized dashboard for repository insights and code
                 coverage trends.
               </p>
+              
             </div>
 
             {/* Metrics Cards with SpotlightCard */}
@@ -397,8 +438,8 @@ const ProfessionalDashboard = () => {
               </SpotlightCard>
 
               <SpotlightCard
-                className="custom-spotlight-card bg-orange-50 border border-orange-100"
-                spotlightColor="rgba(251, 146, 60, 0.38)"
+                className="custom-spotlight-card bg-orange-50 border border-orange-200"
+                spotlightColor="rgba(251, 146, 60, 0.44)"
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-semibold text-orange-700">
@@ -419,8 +460,8 @@ const ProfessionalDashboard = () => {
               </SpotlightCard>
 
               <SpotlightCard
-                className="custom-spotlight-card bg-orange-50 border border-orange-100"
-                spotlightColor="rgba(251, 146, 60, 0.32)"
+                className="custom-spotlight-card bg-orange-50 border border-orange-200"
+                spotlightColor="rgba(251, 146, 60, 0.44)"
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-semibold text-orange-700">
@@ -441,8 +482,8 @@ const ProfessionalDashboard = () => {
               </SpotlightCard>
 
               <SpotlightCard
-                className="custom-spotlight-card bg-orange-100 border border-orange-300"
-                spotlightColor="rgba(251, 146, 60, 0.46)"
+                className="custom-spotlight-card bg-orange-50 border border-orange-200"
+                spotlightColor="rgba(251, 146, 60, 0.44)"
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-semibold text-orange-700">
@@ -450,21 +491,25 @@ const ProfessionalDashboard = () => {
                   </h2>
                   <LineChartIcon className="h-6 w-6 text-orange-500" />
                 </div>
-                <p className="text-3xl font-bold text-orange-500">
-                  {metrics.recentScans}
-                </p>
-                <p className="text-sm text-orange-400 mt-2">Last 7 days</p>
+                <button
+                  className="w-full text-left"
+                  onClick={handleRecentScansClick}
+                  aria-label="Show recent scans"
+                >
+                  <p className="text-3xl font-bold text-orange-500">
+                    {metrics.recentScans}
+                  </p>
+                  <p className="text-sm text-orange-400 mt-2">Last 7 days</p>
+                </button>
                 <BorderBeam
                   duration={4}
                   size={300}
                   reverse
-                  className="from-transparent via-orange-500 to-transparent"
+                  className="from-transparent via-orange-400 to-transparent"
                 />
               </SpotlightCard>
             </div>
 
-            {/* GitHub Contributions Section */}
-           
 
             {/* Professional Dashboard Charts Section */}
             {dashboardLoading ? (
@@ -492,7 +537,10 @@ const ProfessionalDashboard = () => {
                   <CardContent>
                     <ChartContainer config={{}}>
                       <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={coverageByRepoData}>
+                        <BarChart
+                          data={coverageByRepoData}
+                          onClick={handleRepoBarClick}
+                        >
                           <CartesianGrid strokeDasharray="3 3" className="stroke-orange-100" />
                           <XAxis 
                             dataKey="name" 
@@ -511,6 +559,8 @@ const ProfessionalDashboard = () => {
                             dataKey="coverage" 
                             radius={[4, 4, 0, 0]}
                             className="fill-orange-500"
+                            // Add cursor pointer for bars
+                            cursor="pointer"
                           />
                         </BarChart>
                       </ResponsiveContainer>
@@ -569,7 +619,7 @@ const ProfessionalDashboard = () => {
                 </Card>
 
                 {/* Language Breakdown Pie Chart */}
-                <Card className="border-orange-100 shadow-sm hover:shadow-md transition-shadow">
+                {/* <Card className="border-orange-100 shadow-sm hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-orange-700">
                       <Code2 className="h-5 w-5" />
@@ -617,10 +667,10 @@ const ProfessionalDashboard = () => {
                       </ResponsiveContainer>
                     </ChartContainer>
                   </CardContent>
-                </Card>
+                </Card> */}
 
                 {/* Test Results Pie Chart */}
-                <Card className="border-orange-100 shadow-sm hover:shadow-md transition-shadow">
+                {/* <Card className="border-orange-100 shadow-sm hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-orange-700">
                       <TestTube className="h-5 w-5" />
@@ -668,7 +718,7 @@ const ProfessionalDashboard = () => {
                       </ResponsiveContainer>
                     </ChartContainer>
                   </CardContent>
-                </Card>
+                </Card> */}
 
                 {/* Coverage Trend Area Chart - Full Width */}
                 <Card className="border-orange-100 shadow-sm hover:shadow-md transition-shadow lg:col-span-1">
@@ -833,6 +883,51 @@ const ProfessionalDashboard = () => {
           </>
         )}
       </div>
+
+      {/* Modal for recent scanned repositories using shadcn dialog */}
+      <Dialog open={scannedReposModalOpen} onOpenChange={setScannedReposModalOpen}>
+        <DialogContent className="max-w-lg w-full border-orange-200 h-[500px] max-h-[500px] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-orange-700">
+              Recent Scanned Repositories
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto">
+            {scannedReposLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <Loader2 className="h-6 w-6 text-orange-500 animate-spin" />
+                <span className="ml-3 text-sm text-orange-400">
+                  Loading scanned repositories...
+                </span>
+              </div>
+            ) : scannedReposError ? (
+              <div className="text-red-500 text-sm">{scannedReposError}</div>
+            ) : scannedRepos.length === 0 ? (
+              <div className="text-orange-400 text-sm">No scanned repositories found.</div>
+            ) : (
+              <AnimatedList
+                items={scannedRepos.map((repo) => (
+                  <div className="flex flex-col">
+                    <span className="font-medium text-orange-700">
+                      {repo.repository.split("/").pop()}
+                    </span>
+                    <span className="text-xs text-orange-500">
+                      Last scanned: {new Date(repo.last_scanned).toLocaleString()}
+                    </span>
+                    <span className="text-xs text-orange-400">
+                      Total scans: {repo.total_scans}
+                    </span>
+                  </div>
+                ))}
+                showGradients={true}
+                className="w-full"
+                itemClassName="bg-orange-50 border-orange-100"
+                displayScrollbar={true}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </PageSkeleton>
   );
 };
