@@ -182,7 +182,12 @@ const AnimatedList: React.FC<AnimatedListProps> = ({
                   : "bg-white border border-orange-100"
               } ${itemClassName}`}
             >
-              <p className="text-orange-900 m-0">{item}</p>
+              {/* Only wrap in <p> if item is a string, otherwise render directly */}
+              {typeof item === "string" ? (
+                <p className="text-orange-900 m-0">{item}</p>
+              ) : (
+                item
+              )}
             </div>
           </AnimatedItem>
         ))}

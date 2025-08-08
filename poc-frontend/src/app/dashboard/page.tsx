@@ -437,27 +437,27 @@ const ProfessionalDashboard = () => {
                 />
               </SpotlightCard>
 
-              <SpotlightCard
+                <SpotlightCard
                 className="custom-spotlight-card bg-orange-50 border border-orange-200"
                 spotlightColor="rgba(251, 146, 60, 0.44)"
-              >
+                >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-semibold text-orange-700">
-                    Total Scans
+                  Total Scans
                   </h2>
                   <Clipboard className="h-6 w-6 text-orange-500" />
                 </div>
                 <p className="text-3xl font-bold text-orange-500">
                   {metrics.totalScans}
                 </p>
-                <p className="text-sm text-orange-400 mt-2">Coverage scans</p>
+                <p className="text-sm text-orange-400 mt-2">All-time coverage scan count</p>
                 <BorderBeam
                   duration={4}
                   size={300}
                   reverse
                   className="from-transparent via-orange-400 to-transparent"
                 />
-              </SpotlightCard>
+                </SpotlightCard>
 
               <SpotlightCard
                 className="custom-spotlight-card bg-orange-50 border border-orange-200"

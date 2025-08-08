@@ -106,7 +106,7 @@ const RepositoriesPage = () => {
   const searchParams = useSearchParams();
 
   const fetchRepositories = async (skip = 0, limit = pagination.pageSize, append = false, search = '') => {
-    // Prevent duplicate requests when already loading
+    
     if (isLoadingRef.current) {
       return;
     }
