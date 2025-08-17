@@ -28,6 +28,96 @@ type RepoWithLang struct {
 	Languages map[string]float64 `json:"languages"`
 }
 
+// GitHub API Response Structures for Branches
+type GitHubBranch struct {
+	Name   string `json:"name"`
+	Commit struct {
+		SHA string `json:"sha"`
+		URL string `json:"url"`
+	} `json:"commit"`
+	Protected bool `json:"protected"`
+}
+
+type GitHubRepository struct {
+	DefaultBranch string `json:"default_branch"`
+	Private       bool   `json:"private"`
+	Fork          bool   `json:"fork"`
+	Language      string `json:"language"`
+}
+
+// Response Structures for Branches
+type BranchInfo struct {
+	Name      string `json:"name"`
+	CommitSHA string `json:"commit_sha"`
+	Protected bool   `json:"protected"`
+	IsDefault bool   `json:"is_default"`
+}
+
+type RepositoryBranchesResponse struct {
+	Repository    string       `json:"repository"`
+	DefaultBranch string       `json:"default_branch"`
+	TotalBranches int          `json:"total_branches"`
+	Branches      []BranchInfo `json:"branches"`
+}
+
+// GetRepositoryBranches fetches all branches from a GitHub repository
+func GetRepositoryBranches(c *gin.Context) {
+	repoURL := c.Query("repo_url")
+	if repoURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Repository URL is required"})
+		return
+	}
+
+	// Extract owner and repo name from GitHub URL
+	owner, repo, err := parseGitHubURL(repoURL)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid GitHub repository URL"})
+		return
+	}
+
+	// Get GitHub token from user context
+	githubToken, err := extractGitHubToken(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get repository info first to get default branch
+	repoInfo, err := getRepositoryInfo(owner, repo, githubToken)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get repository info: %v", err)})
+		return
+	}
+
+	// Get branches from GitHub API
+	branches, err := getRepositoryBranches(owner, repo, githubToken)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to fetch branches: %v", err)})
+		return
+	}
+
+	// Convert to response format
+	var branchInfos []BranchInfo
+	for _, branch := range branches {
+		branchInfo := BranchInfo{
+			Name:      branch.Name,
+			CommitSHA: branch.Commit.SHA,
+			Protected: branch.Protected,
+			IsDefault: branch.Name == repoInfo.DefaultBranch,
+		}
+		branchInfos = append(branchInfos, branchInfo)
+	}
+
+	response := RepositoryBranchesResponse{
+		Repository:    repoURL,
+		DefaultBranch: repoInfo.DefaultBranch,
+		TotalBranches: len(branchInfos),
+		Branches:      branchInfos,
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func GetUserRepositories(c *gin.Context) {
 	userIDStr, exists := c.Get("userID")
 	if !exists {
@@ -699,4 +789,127 @@ func processAndSaveRepositoriesBackground(ctx context.Context, userID primitive.
 	}
 	wg.Wait()
 	log.Printf("Finished processing repositories for user %s - Success: %d, Error: %d", userID.Hex(), successCount, errorCount)
+}
+
+// Helper Functions for Repository Branches
+
+// parseGitHubURL extracts owner and repository name from GitHub URL
+func parseGitHubURL(repoURL string) (owner, repo string, err error) {
+	// Handle both https://github.com/owner/repo and git@github.com:owner/repo.git formats
+	repoURL = strings.TrimSuffix(repoURL, ".git")
+
+	if strings.Contains(repoURL, "github.com/") {
+		parts := strings.Split(repoURL, "github.com/")
+		if len(parts) != 2 {
+			return "", "", fmt.Errorf("invalid GitHub URL format")
+		}
+
+		pathParts := strings.Split(parts[1], "/")
+		if len(pathParts) < 2 {
+			return "", "", fmt.Errorf("invalid GitHub URL format")
+		}
+
+		return pathParts[0], pathParts[1], nil
+	}
+
+	return "", "", fmt.Errorf("not a GitHub URL")
+}
+
+// extractGitHubToken gets the GitHub token from user context
+func extractGitHubToken(c *gin.Context) (string, error) {
+	userIDStr, exists := c.Get("userID")
+	if !exists {
+		return "", fmt.Errorf("user not authenticated")
+	}
+
+	userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
+	if err != nil {
+		return "", fmt.Errorf("invalid user ID format")
+	}
+
+	// Get user from database to retrieve GitHub token
+	collection := config.GetCollection("users")
+	var user models.User
+	if err := collection.FindOne(context.Background(), bson.M{"_id": userID}).Decode(&user); err != nil {
+		return "", fmt.Errorf("failed to get user information")
+	}
+
+	if user.AccessToken == "" {
+		return "", fmt.Errorf("GitHub token not found")
+	}
+
+	return user.AccessToken, nil
+}
+
+// getRepositoryInfo fetches repository information from GitHub API
+func getRepositoryInfo(owner, repo, token string) (*GitHubRepository, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repo)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("User-Agent", "YourAppName")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("repository not found or access denied")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+	}
+
+	var repoInfo GitHubRepository
+	if err := json.NewDecoder(resp.Body).Decode(&repoInfo); err != nil {
+		return nil, err
+	}
+
+	return &repoInfo, nil
+}
+
+// getRepositoryBranches fetches all branches from GitHub API
+func getRepositoryBranches(owner, repo, token string) ([]GitHubBranch, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/branches", owner, repo)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "token "+token)
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("User-Agent", "YourAppName")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("repository not found or access denied")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+	}
+
+	var branches []GitHubBranch
+	if err := json.NewDecoder(resp.Body).Decode(&branches); err != nil {
+		return nil, err
+	}
+
+	return branches, nil
+
 }

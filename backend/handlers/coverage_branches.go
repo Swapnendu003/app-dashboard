@@ -2,20 +2,21 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/yourusername/backend/config"
-	"github.com/yourusername/backend/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type MultiBranchScanRequest struct {
 	RepoURL  string   `json:"repo_url" binding:"required"`
 	Branches []string `json:"branches" binding:"required"`
+	Async    bool     `json:"async"`
 }
 
 type BranchScanStatus struct {
@@ -33,6 +34,11 @@ type MultiBranchScanResponse struct {
 	Branches     []BranchScanStatus `json:"branches"`
 }
 
+type BranchJobStatus struct {
+	Branch string `json:"branch"`
+	JobID  string `json:"job_id"`
+}
+
 func ScanMultipleBranches(c *gin.Context) {
 	var req MultiBranchScanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -40,11 +46,133 @@ func ScanMultipleBranches(c *gin.Context) {
 		return
 	}
 
+	// Always set async to true regardless of request
+	req.Async = true
+
 	if len(req.Branches) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one branch must be specified"})
 		return
 	}
 
+	userIDStr, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID, err := primitive.ObjectIDFromHex(userIDStr.(string))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	db, err := config.ConnectDB()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database connection failed"})
+		return
+	}
+
+	if req.Async {
+		jobStatuses := make([]BranchJobStatus, 0, len(req.Branches))
+		now := time.Now()
+
+		for _, branch := range req.Branches {
+			jobID := primitive.NewObjectID().Hex()
+
+			// Create job document
+			jobDoc := bson.M{
+				"job_id":     jobID,
+				"repository": req.RepoURL,
+				"branch":     branch,
+				"status":     "in_progress",
+				"created_at": now,
+				"updated_at": now,
+				"job_type":   "coverage_scan",
+				"start_time": now,
+				"progress":   0,
+			}
+
+			collection := db.Collection("coverage_jobs")
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_, err = collection.InsertOne(ctx, jobDoc)
+			cancel()
+
+			if err != nil {
+				log.Printf("ERROR: Failed to save job for branch %s: %v", branch, err)
+				continue
+			}
+
+			jobStatuses = append(jobStatuses, BranchJobStatus{
+				Branch: branch,
+				JobID:  jobID,
+			})
+
+			jobsMutex.Lock()
+			activeJobs[jobID] = &JobStatus{
+				ID:         jobID,
+				JobType:    "coverage_scan",
+				Status:     "in_progress",
+				StartTime:  now,
+				Repository: req.RepoURL,
+				Branch:     branch,
+				Progress:   0,
+			}
+			jobsMutex.Unlock()
+
+			// Start goroutine for each branch scan
+			go func(branch, jobID string) {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("ERROR: Panic in async coverage scan for branch %s: %v", branch, r)
+						updateJobStatus(jobID, "failed", "", "Internal server error")
+					}
+				}()
+
+				coverageReq := CoverageRequest{
+					RepoURL: req.RepoURL,
+					Branch:  branch,
+					UserID:  userID,
+				}
+
+				progressDone := make(chan bool)
+				go func() {
+					ticker := time.NewTicker(5 * time.Second)
+					defer ticker.Stop()
+					progress := 10
+					for {
+						select {
+						case <-progressDone:
+							return
+						case <-ticker.C:
+							if progress < 90 {
+								progress += 5
+								updateJobProgress(jobID, progress)
+							}
+						}
+					}
+				}()
+
+				resp, err := scanCoverage(coverageReq, true)
+				close(progressDone)
+
+				if err != nil {
+					log.Printf("ERROR: Async coverage scan failed for branch %s: %v", branch, err)
+					updateJobStatus(jobID, "failed", "", err.Error())
+					return
+				}
+
+				log.Printf("INFO: Async coverage scan completed successfully for job %s branch %s", jobID, branch)
+				updateJobStatus(jobID, "completed", resp.ID, "")
+			}(branch, jobID)
+		}
+
+		c.JSON(http.StatusAccepted, gin.H{
+			"message": fmt.Sprintf("Started %d coverage scans", len(jobStatuses)),
+			"jobs":    jobStatuses,
+		})
+		return
+	}
+
+	// Synchronous execution (existing code)
 	response := MultiBranchScanResponse{
 		RepoURL:      req.RepoURL,
 		TotalScanned: len(req.Branches),
@@ -170,25 +298,43 @@ func CompareBranchCoverage(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	getBranchData := func(branch string) (*models.CoverageHistory, error) {
-		opts := options.FindOne().SetSort(bson.M{"timestamp": -1})
-		var result models.CoverageHistory
-		err := collection.FindOne(ctx, bson.M{
-			"repository": repoURL,
-			"branch":     branch,
-		}, opts).Decode(&result)
-
-		if err != nil {
-			return nil, err
-		}
-
-		return &result, nil
+	type FileCoverage struct {
+		File     string  `bson:"file"`
+		Coverage float64 `bson:"coverage"`
 	}
 
-	branch1Data, err1 := getBranchData(branch1)
-	branch2Data, err2 := getBranchData(branch2)
+	type BranchHistory struct {
+		TotalCoverage float64        `bson:"total_coverage"`
+		Files         []FileCoverage `bson:"files"`
+		Timestamp     time.Time      `bson:"timestamp"`
+		CommitHash    string         `bson:"commit_hash"`
+	}
 
-	if err1 != nil || err2 != nil {
+	var coverageDoc struct {
+		Repository string `bson:"repository"`
+		Branches   map[string]struct {
+			History []BranchHistory `bson:"history"`
+		} `bson:"branches"`
+	}
+
+	err = collection.FindOne(ctx, bson.M{"repository": repoURL}).Decode(&coverageDoc)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch coverage document"})
+		return
+	}
+
+	getLatest := func(branch string) (*BranchHistory, bool) {
+		b, ok := coverageDoc.Branches[branch]
+		if !ok || len(b.History) == 0 {
+			return nil, false
+		}
+		return &b.History[0], true
+	}
+
+	branch1Data, ok1 := getLatest(branch1)
+	branch2Data, ok2 := getLatest(branch2)
+
+	if !ok1 || !ok2 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Coverage data not found for one or both branches"})
 		return
 	}
@@ -207,7 +353,6 @@ func CompareBranchCoverage(c *gin.Context) {
 	for _, file := range branch1Data.Files {
 		branch1Files[file.File] = file.Coverage
 	}
-
 	for _, file := range branch2Data.Files {
 		branch2Files[file.File] = file.Coverage
 	}
@@ -290,4 +435,38 @@ func CompareBranchCoverage(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+func GetBranchesWithHistory(c *gin.Context) {
+	repoURL := c.Query("repo_url")
+	if repoURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Repository URL is required"})
+		return
+	}
+
+	db, err := config.ConnectDB()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database connection failed"})
+		return
+	}
+
+	collection := db.Collection("coverage_history")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var doc struct {
+		Branches map[string]interface{} `bson:"branches"`
+	}
+	err = collection.FindOne(ctx, bson.M{"repository": repoURL}).Decode(&doc)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"branches": []string{}})
+		return
+	}
+
+	branches := make([]string, 0, len(doc.Branches))
+	for branch := range doc.Branches {
+		branches = append(branches, branch)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"branches": branches})
 }

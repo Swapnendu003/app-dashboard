@@ -13,17 +13,17 @@ import (
 	"sync"
 	"time"
 
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"github.com/yourusername/backend/javautils"
 	"github.com/gin-gonic/gin"
 	"github.com/yourusername/backend/config"
 	"github.com/yourusername/backend/goutils"
+	"github.com/yourusername/backend/javautils"
 	"github.com/yourusername/backend/jsutils"
 	"github.com/yourusername/backend/models"
 	"github.com/yourusername/backend/pythonutils"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type CoverageRequest struct {
@@ -42,7 +42,7 @@ type FileCoverage struct {
 	File     string  `json:"file"`
 	Coverage float64 `json:"coverage"`
 	Error    string  `json:"error,omitempty"`
-	Status   string  `json:"status"` // "Success" or "Failure"
+	Status   string  `json:"status"`
 }
 
 type CoverageResponse struct {
@@ -540,8 +540,6 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 		log.Printf("INFO: %s Cleaning up temp directory: %s", logPrefix, tmpDir)
 		os.RemoveAll(tmpDir)
 	}()
-
-	// Clone repository
 	args := []string{"clone", "--depth", "1", "--single-branch"}
 	if req.Branch != "" {
 		args = append(args, "-b", req.Branch)
@@ -560,7 +558,6 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 	}
 	log.Printf("INFO: %s Successfully cloned repository to %s", logPrefix, tmpDir)
 
-	// MODIFIED: Analyze project structure (added Java)
 	var totalGoFiles, totalPyFiles, totalJSFiles, totalTSFiles, totalJavaFiles int
 	var totalGoTestFiles, totalPyTestFiles, totalJSTestFiles, totalJavaTestFiles int
 
@@ -597,7 +594,7 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 			} else {
 				totalTSFiles++
 			}
-		case ".java":  
+		case ".java":
 			if isJavaTestFile(filename) {
 				totalJavaTestFiles++
 			} else {
@@ -608,21 +605,17 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 	})
 
 	totalJSFilesTotal := totalJSFiles + totalTSFiles
-	// MODIFIED: Updated log message to include Java
 	log.Printf("INFO: %s Repository contains %d Go files (%d tests), %d Python files (%d tests), %d JS/TS files (%d tests), and %d Java files (%d tests)",
 		logPrefix, totalGoFiles, totalGoTestFiles, totalPyFiles, totalPyTestFiles, totalJSFilesTotal, totalJSTestFiles, totalJavaFiles, totalJavaTestFiles)
 
-	// Diagnose JavaScript project if present
 	if totalJSFilesTotal > 0 {
 		jsutils.DiagnoseJSProject(tmpDir, logPrefix)
 	}
 
-	// ADDED: Diagnose Java project if present
 	if totalJavaFiles > 0 {
 		javautils.DiagnoseJavaProject(tmpDir, logPrefix)
 	}
 
-	// Check for custom coverage script
 	script := ""
 	cfgPath := filepath.Join(tmpDir, ".keploy.yaml")
 	if data, err := os.ReadFile(cfgPath); err == nil {
@@ -648,13 +641,13 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 	isPythonAndJS := totalPyFiles > 0 && totalJSFilesTotal > 0
 	isPythonAndJava := totalPyFiles > 0 && totalJavaFiles > 0
 	isJSAndJava := totalJSFilesTotal > 0 && totalJavaFiles > 0
-	isMultiLanguage := (isGoAndPython || isGoAndJS || isGoAndJava || 
-						isPythonAndJS || isPythonAndJava || isJSAndJava ||
-						(totalGoFiles > 0 && totalPyFiles > 0 && totalJSFilesTotal > 0) ||
-						(totalGoFiles > 0 && totalPyFiles > 0 && totalJavaFiles > 0) ||
-						(totalGoFiles > 0 && totalJSFilesTotal > 0 && totalJavaFiles > 0) ||
-						(totalPyFiles > 0 && totalJSFilesTotal > 0 && totalJavaFiles > 0) ||
-						(totalGoFiles > 0 && totalPyFiles > 0 && totalJSFilesTotal > 0 && totalJavaFiles > 0))
+	isMultiLanguage := (isGoAndPython || isGoAndJS || isGoAndJava ||
+		isPythonAndJS || isPythonAndJava || isJSAndJava ||
+		(totalGoFiles > 0 && totalPyFiles > 0 && totalJSFilesTotal > 0) ||
+		(totalGoFiles > 0 && totalPyFiles > 0 && totalJavaFiles > 0) ||
+		(totalGoFiles > 0 && totalJSFilesTotal > 0 && totalJavaFiles > 0) ||
+		(totalPyFiles > 0 && totalJSFilesTotal > 0 && totalJavaFiles > 0) ||
+		(totalGoFiles > 0 && totalPyFiles > 0 && totalJSFilesTotal > 0 && totalJavaFiles > 0))
 
 	// Custom script execution (highest priority)
 	if !coverageFound && script != "" {
@@ -688,7 +681,7 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 	// Single language project handling
 	if !coverageFound {
 		switch projectType {
-		case "java":  // ADDED JAVA CASE
+		case "java": // ADDED JAVA CASE
 			log.Printf("INFO: %s Running Java coverage (primary language)", logPrefix)
 			javaResp, javaErr := javautils.RunJavaCoverage(tmpDir, logPrefix)
 			if javaErr == nil && javaResp.TotalCoverage > 0 {
@@ -840,35 +833,46 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 				"repository": req.RepoURL,
 				"user_id":    req.UserID,
 			}
+
+			// First, get the current document to check branch existence and total scans
+			var existingDoc struct {
+				Branches map[string]struct {
+					TotalScans int `bson:"total_scans"`
+				} `bson:"branches"`
+			}
+			err := collection.FindOne(ctx, filter).Decode(&existingDoc)
+
+			var totalScans int = 1
+			if err == nil && existingDoc.Branches != nil {
+				if branchData, exists := existingDoc.Branches[req.Branch]; exists {
+					totalScans = branchData.TotalScans + 1
+				}
+			}
+
 			update := bson.M{
 				"$set": bson.M{
-					"total_coverage": resp.TotalCoverage,
-					"files":          files,
-					"timestamp":      now,
-					"commit_hash":    commitHash,
-				},
-				"$inc": bson.M{
-					"number_of_scans": 1,
+					fmt.Sprintf("branches.%s.latest_coverage", req.Branch): resp.TotalCoverage,
+					fmt.Sprintf("branches.%s.last_updated", req.Branch):    now,
+					fmt.Sprintf("branches.%s.total_scans", req.Branch):     totalScans,
 				},
 				"$push": bson.M{
-					"scan_history": scanRecord,
+					fmt.Sprintf("branches.%s.history", req.Branch): scanRecord,
+				},
+				"$inc": bson.M{
+					"total_scans": 1,
 				},
 			}
+
 			opts := options.Update().SetUpsert(true)
-			_, err := collection.UpdateOne(ctx, filter, update, opts)
+			_, err = collection.UpdateOne(ctx, filter, update, opts)
 			if err != nil {
 				log.Printf("WARNING: %s Failed to upsert coverage history: %v", logPrefix, err)
 			} else {
-				log.Printf("INFO: %s Successfully upserted coverage history", logPrefix)
+				log.Printf("INFO: %s Successfully appended coverage history for branch %s (scan #%d)",
+					logPrefix, req.Branch, totalScans)
 			}
 
 			repoCollection := db.Collection("repositories")
-			update = bson.M{
-				"$set": bson.M{
-					"coverage":         resp.TotalCoverage,
-					"last_coverage_at": now,
-				},
-			}
 			filter = bson.M{
 				"$or": []bson.M{
 					{"url": req.RepoURL},
@@ -876,14 +880,20 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 					{"full_name": strings.TrimPrefix(strings.TrimPrefix(req.RepoURL, "https://github.com/"), "https://api.github.com/repos/")},
 				},
 			}
+
+			update = bson.M{
+				"$set": bson.M{
+					fmt.Sprintf("branch_coverage.%s", req.Branch): resp.TotalCoverage,
+					"last_coverage_at":                            now,
+				},
+			}
+
 			_, err = repoCollection.UpdateOne(ctx, filter, update)
 			if err != nil {
 				log.Printf("WARNING: %s Failed to update repository coverage: %v", logPrefix, err)
 			} else {
-				log.Printf("INFO: %s Successfully updated repository coverage to %.2f%%", logPrefix, resp.TotalCoverage)
+				log.Printf("INFO: %s Successfully updated repository coverage for branch %s to %.2f%%", logPrefix, req.Branch, resp.TotalCoverage)
 			}
-
-			log.Printf("INFO: %s Successfully saved coverage history", logPrefix)
 		} else {
 			log.Printf("WARNING: %s Failed to save coverage history: %v", logPrefix, err)
 		}
@@ -895,7 +905,7 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 }
 
 // Helper function to handle mixed language projects
-// 
+//
 
 func handleMixedLanguageProject(tmpDir, logPrefix string, totalGoFiles, totalPyFiles, totalJSFiles, totalJavaFiles int) (CoverageResponse, bool) {
 	log.Printf("INFO: %s Processing mixed language project", logPrefix)
@@ -931,7 +941,7 @@ func handleMixedLanguageProject(tmpDir, logPrefix string, totalGoFiles, totalPyF
 			log.Printf("INFO: %s Java coverage: %.2f%% (weight: %.2f)",
 				logPrefix, javaResp.TotalCoverage, float64(totalJavaFiles)/float64(totalFiles))
 		} else {
-			log.Printf("WARNING: %s Java coverage failed: %v, trying estimation", logPrefix, javaErr)
+			log.Printf("WARNING: %s Java coverage failed: %v", logPrefix, javaErr)
 			if javaEstResp, estErr := javautils.EstimateJavaCoverage(tmpDir, logPrefix); estErr == nil && javaEstResp.TotalCoverage > 0 {
 				responses = append(responses, convertJavaResponse(javaEstResp))
 				weights = append(weights, float64(totalJavaFiles)/float64(totalFiles))
@@ -1016,8 +1026,6 @@ func handleMixedLanguageProject(tmpDir, logPrefix string, totalGoFiles, totalPyF
 	}, true
 }
 
-
-
 // Conversion functions for different language responses
 func convertGoResponse(goResp goutils.GoCoverageResponse) CoverageResponse {
 	var files []FileCoverage
@@ -1097,6 +1105,32 @@ func convertPythonResponse(pythonResp pythonutils.PythonCoverageResponse) Covera
 	}
 }
 
+func convertJavaResponse(javaResp javautils.JavaCoverageResponse) CoverageResponse {
+	var files []FileCoverage
+	for _, f := range javaResp.Files {
+		status := "Success"
+		if f.Error != "" {
+			status = "Failure"
+		}
+		files = append(files, FileCoverage{
+			File:     f.File,
+			Coverage: f.Coverage,
+			Error:    f.Error,
+			Status:   status,
+		})
+	}
+
+	return CoverageResponse{
+		TotalCoverage: javaResp.TotalCoverage,
+		Files:         files,
+		ID:            javaResp.ID,
+		Repository:    javaResp.Repository,
+		Branch:        javaResp.Branch,
+		Timestamp:     javaResp.Timestamp,
+		CommitHash:    javaResp.CommitHash,
+	}
+}
+
 // Utility functions
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
@@ -1117,7 +1151,15 @@ func isJSTestFile(filename string) bool {
 		strings.HasSuffix(lowerName, ".spec.tsx")
 }
 
-
+func isJavaTestFile(filename string) bool {
+	lowerName := strings.ToLower(filename)
+	return strings.Contains(lowerName, "test") ||
+		strings.Contains(lowerName, "/test/") ||
+		strings.HasSuffix(lowerName, "test.java") ||
+		strings.HasSuffix(lowerName, "tests.java") ||
+		strings.Contains(lowerName, "testcase") ||
+		strings.Contains(lowerName, "spec.java")
+}
 
 func detectProjectType(dir string, logPrefix string) string {
 	log.Printf("INFO: %s Analyzing project structure for primary language", logPrefix)
@@ -1132,7 +1174,7 @@ func detectProjectType(dir string, logPrefix string) string {
 			javaProjectInfo.Type == javautils.MicronautProject ||
 			javaProjectInfo.Type == javautils.MavenProject ||
 			javaProjectInfo.Type == javautils.GradleProject {
-			log.Printf("INFO: %s Detected Java project type: %v with build tool: %v", 
+			log.Printf("INFO: %s Detected Java project type: %v with build tool: %v",
 				logPrefix, javaProjectInfo.Type, javaProjectInfo.BuildTool)
 			return "java"
 		}
@@ -1201,7 +1243,7 @@ func detectProjectType(dir string, logPrefix string) string {
 			if !isJSTestFile(info.Name()) {
 				jsFileCount++
 			}
-		case ".java":  // ADDED JAVA CASE
+		case ".java": // ADDED JAVA CASE
 			if !strings.Contains(strings.ToLower(info.Name()), "test") {
 				javaFileCount++
 			}
@@ -1319,40 +1361,4 @@ func cleanupInMemoryCache() {
 	}
 
 	log.Printf("In-memory job cache size: %d", len(completedJobs))
-}
-func convertJavaResponse(javaResp javautils.JavaCoverageResponse) CoverageResponse {
-	var files []FileCoverage
-	for _, f := range javaResp.Files {
-		status := "Success"
-		if f.Error != "" {
-			status = "Failure"
-		}
-		files = append(files, FileCoverage{
-			File:     f.File,
-			Coverage: f.Coverage,
-			Error:    f.Error,
-			Status:   status,
-		})
-	}
-
-	return CoverageResponse{
-		TotalCoverage: javaResp.TotalCoverage,
-		Files:         files,
-		ID:            javaResp.ID,
-		Repository:    javaResp.Repository,
-		Branch:        javaResp.Branch,
-		Timestamp:     javaResp.Timestamp,
-		CommitHash:    javaResp.CommitHash,
-	}
-}
-
-// ADDED: Java test file helper function
-func isJavaTestFile(filename string) bool {
-	lowerName := strings.ToLower(filename)
-	return strings.Contains(lowerName, "test") ||
-		strings.Contains(lowerName, "/test/") ||
-		strings.HasSuffix(lowerName, "test.java") ||
-		strings.HasSuffix(lowerName, "tests.java") ||
-		strings.Contains(lowerName, "testcase") ||
-		strings.Contains(lowerName, "spec.java")
 }

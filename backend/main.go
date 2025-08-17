@@ -50,6 +50,8 @@ func main() {
 	protected.GET("/coverage/metrics", handlers.GetCoverageMetrics)
 	protected.GET("/coverage/recent-activity", handlers.GetRecentActivity)
 	protected.GET("/coverage/scanned-repos", handlers.GetUserScannedRepositories)
+	protected.GET("/repositories/branches", handlers.GetRepositoryBranches)
+	protected.GET("/coverage/branches/history", handlers.GetBranchesWithHistory)
 
 	handlers.CleanupOldJobs()
 

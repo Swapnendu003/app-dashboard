@@ -250,11 +250,42 @@ const ProfessionalDashboard = () => {
     coverage: number;
   };
 
-  const coverageByRepoData = dashboardData?.coverage_by_repo?.map((item: CoverageByRepoItem, index: number) => ({
-    name: item.repo?.split('/').pop() || `Repo ${index + 1}`,
-    coverage: Math.round(item.coverage * 10) / 10,
-    fill: `hsl(${25 + index * 45}, 70%, 55%)`,
-  })) || [];
+  // Modify the coverage data transformation to include branch information
+  const coverageByRepoData = React.useMemo(() => {
+    // Group coverage trend data by repository
+    const groupedData = dashboardData?.coverage_trend?.reduce((acc: any, item: any) => {
+      const repoName = item.repo?.split('/').pop() || 'Unknown';
+      if (!acc[repoName]) {
+        acc[repoName] = [];
+      }
+      acc[repoName].push({
+        branch: item.branch,
+        coverage: Math.round(item.coverage * 10) / 10
+      });
+      return acc;
+    }, {});
+
+    return Object.entries(groupedData || {}).map(([repo, branches]) => {
+      const branchArray = branches as Array<{ branch: string; coverage: number }>;
+      const result: any = { name: repo };
+      branchArray.forEach((branch, index) => {
+        result[branch.branch] = branch.coverage;
+        result[`${branch.branch}Color`] = index === 0 
+          ? 'hsl(25, 100.00%, 58.60%)'
+          : `hsl(${200 + (index - 1) * 40}, 70%, 50%)`; 
+      });
+      return result;
+    });
+  }, [dashboardData?.coverage_trend]);
+
+  // Get all unique branch names for the stacked bars
+  const branchNames = React.useMemo(() => {
+    const branches = new Set<string>();
+    dashboardData?.coverage_trend?.forEach((item: any) => {
+      branches.add(item.branch);
+    });
+    return Array.from(branches);
+  }, [dashboardData?.coverage_trend]);
 
   const languageData = dashboardData?.language_breakdown 
     ? Object.entries(dashboardData.language_breakdown)
@@ -531,7 +562,7 @@ const ProfessionalDashboard = () => {
                       Coverage by Repository
                     </CardTitle>
                     <CardDescription>
-                      Code coverage percentage across repositories
+                      Code coverage percentage across repositories and branches
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -551,17 +582,46 @@ const ProfessionalDashboard = () => {
                           />
                           <YAxis tick={{ fill: 'hsl(20, 60%, 40%)' }} />
                           <ChartTooltip
-                            content={<ChartTooltipContent />}
-                            labelFormatter={(label) => `Repository: ${label}`}
-                            formatter={(value) => [`${value}%`, "Coverage"]}
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="bg-white p-3 border border-orange-200 rounded-lg shadow-lg">
+                                    <p className="font-medium text-orange-700">{label}</p>
+                                    {payload.map((entry: any) => (
+                                      <p 
+                                        key={entry.name} 
+                                        className="text-sm"
+                                        style={{ 
+                                          color: coverageByRepoData.find(d => d.name === label)?.[`${entry.name}Color`] 
+                                        }}
+                                      >
+                                        {entry.name}: {entry.value}%
+                                      </p>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
                           />
-                          <Bar 
-                            dataKey="coverage" 
-                            radius={[4, 4, 0, 0]}
-                            className="fill-orange-500"
-                            // Add cursor pointer for bars
-                            cursor="pointer"
-                          />
+                          {branchNames.map((branch, index) => (
+                            <Bar
+                              key={branch}
+                              dataKey={branch}
+                              stackId="coverage"
+                              fill={['main', 'master'].includes(branch.toLowerCase()) 
+                                ? 'hsl(25, 70%, 50%)' 
+                                : `hsl(${200 + index * 40}, 70%, 50%)`}
+                              radius={index === branchNames.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                            >
+                              {coverageByRepoData.map((entry: any, idx: number) => (
+                                <Cell
+                                  key={`cell-${idx}`}
+                                  fill={entry[`${branch}Color`]}
+                                />
+                              ))}
+                            </Bar>
+                          ))}
                         </BarChart>
                       </ResponsiveContainer>
                     </ChartContainer>

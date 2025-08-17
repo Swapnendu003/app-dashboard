@@ -15,13 +15,6 @@ export interface CoverageResponse {
   commit_hash?: string;
 }
 
-export interface ScanRecord {
-  total_coverage: number;
-  files: FileCoverage[];
-  timestamp: string;
-  commit_hash?: string;
-}
-
 export interface CoverageHistory {
   id: string;
   repository: string;
@@ -31,14 +24,14 @@ export interface CoverageHistory {
   timestamp: string;
   commit_hash?: string;
   user_id?: string;
-  number_of_scans?: number;
-  scan_history?: ScanRecord[];
+  total_scans: number;    
+  branch_scans: number;    
 }
 
 export interface CoverageTrend {
   date: string;
   coverage: number;
-  commit_hash?: string;
+  branch?: string;
 }
 
 export interface BranchCoverage {

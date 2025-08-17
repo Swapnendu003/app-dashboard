@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { getUserScannedRepositories, runCoverageScan, getCoverageJobStatus, getCoverageById, getCoverageHistory, getCoverageTrends, getActiveJobs } from '@/services/api';
+import { getUserScannedRepositories, runCoverageScan, getCoverageJobStatus, getCoverageById, getCoverageHistory, getCoverageTrends, getActiveJobs, getBranchList } from '@/services/api';
 import { Loader2, BarChart2, AlertCircle, CheckCircle2, PlusCircle, GitBranch, History, Activity } from 'lucide-react';
 import PageSkeleton from '@/components/PageSkeleton';
-import { FileHeatmap, CoverageHistoryChart, CoverageHistoryList } from '@/components/CoverageVisualizations';
+import { FileHeatmap, CoverageHistoryChart, CoverageHistoryList, BranchCoverageList, BranchComparison } from '@/components/CoverageVisualizations';
 import ActiveJobsList from "@/components/ActiveJobsList";
 
 const AdhocCoveragePage = () => {
   const [repoUrl, setRepoUrl] = useState('');
   const [branch, setBranch] = useState('');
+  const [branches, setBranches] = useState<{ name: string; isDefault: boolean; protected: boolean }[]>([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
@@ -24,7 +26,7 @@ const AdhocCoveragePage = () => {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [coverageHistory, setCoverageHistory] = useState<any[]>([]);
   const [coverageTrends, setCoverageTrends] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'scanner' | 'history' | 'jobs'>('scanner');
+  const [activeTab, setActiveTab] = useState<'scanner' | 'history' | 'jobs' | 'branches' | 'compare'>('scanner');
   const [timeframe, setTimeframe] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [scanSettings, setScanSettings] = useState({
@@ -34,11 +36,21 @@ const AdhocCoveragePage = () => {
   const [fileSearchQuery, setFileSearchQuery] = useState('');
   const [filteredFiles, setFilteredFiles] = useState<any[]>([]);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
+  const [compareBranch1, setCompareBranch1] = useState<string>('main');
+  const [compareBranch2, setCompareBranch2] = useState<string>('develop');
 
   useEffect(() => {
     setLoadingRepos(true);
     getUserScannedRepositories()
-      .then(res => setScannedRepos(res.data.repositories || []))
+      .then(res => {
+    
+        const repos = (res.data.repositories || []).slice().sort((a: any, b: any) => {
+          const dateA = new Date(a.last_scanned).getTime();
+          const dateB = new Date(b.last_scanned).getTime();
+          return dateB - dateA;
+        });
+        setScannedRepos(repos);
+      })
       .catch(() => setScannedRepos([]))
       .finally(() => setLoadingRepos(false));
   }, []);
@@ -46,10 +58,14 @@ const AdhocCoveragePage = () => {
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined;
     if (jobId && jobStatus && jobStatus !== 'completed' && jobStatus !== 'failed') {
+      setSuccess(null);
+      setError(null);
+
       interval = setInterval(async () => {
         try {
           const response = await getCoverageJobStatus(jobId);
           const status = response.data.status;
+          
           setJobStatus(status);
           if (status === 'completed') {
             clearInterval(interval!);
@@ -101,6 +117,36 @@ const AdhocCoveragePage = () => {
     const interval = setInterval(checkActiveJobs, 30000);
     return () => clearInterval(interval);
   }, [checkActiveJobs]);
+
+  const fetchBranches = useCallback(async (url: string) => {
+    if (!url) return;
+    setLoadingBranches(true);
+    setBranches([]);
+    try {
+      const response = await getBranchList(url);
+      const branchList = response.data.branches.map((branch: any) => ({
+        name: branch.name,
+        isDefault: branch.is_default || false,
+        protected: branch.protected || false
+      }));
+      setBranches(branchList);
+      const defaultBranch = branchList.find((b: { name: string; isDefault: boolean; protected: boolean }) => b.isDefault);
+      if (defaultBranch && !branch) {
+        setBranch(defaultBranch.name);
+      }
+    } catch (error) {
+      console.error('Failed to fetch branches:', error);
+    } finally {
+      setLoadingBranches(false);
+    }
+  }, [branch]);
+
+  // Add this effect to fetch branches when repo URL changes
+  useEffect(() => {
+    if (repoUrl) {
+      fetchBranches(repoUrl);
+    }
+  }, [repoUrl, fetchBranches]);
 
   const handleScan = async () => {
     setScanLoading(true);
@@ -183,15 +229,26 @@ const AdhocCoveragePage = () => {
               <span>Coverage Scanner</span>
             </button>
             <button
-              onClick={() => setActiveTab('history')}
+              onClick={() => setActiveTab('branches')}
               className={`flex-1 px-4 py-2 rounded-t-md font-medium transition-all flex items-center justify-center space-x-2 ${
-                activeTab === 'history'
+                activeTab === 'branches'
                   ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
                   : 'text-orange-500 hover:text-orange-700'
               }`}
             >
-              <History size={16} />
-              <span>Scan History</span>
+              <GitBranch size={16} />
+              <span>Branches</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('compare')}
+              className={`flex-1 px-4 py-2 rounded-t-md font-medium transition-all flex items-center justify-center space-x-2 ${
+                activeTab === 'compare'
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                  : 'text-orange-500 hover:text-orange-700'
+              }`}
+            >
+              <GitBranch size={16} />
+              <span>Compare</span>
             </button>
             <button
               onClick={() => setActiveTab('jobs')}
@@ -209,6 +266,17 @@ const AdhocCoveragePage = () => {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`flex-1 px-4 py-2 rounded-t-md font-medium transition-all flex items-center justify-center space-x-2 ${
+                activeTab === 'history'
+                  ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white'
+                  : 'text-orange-500 hover:text-orange-700'
+              }`}
+            >
+              <History size={16} />
+              <span>Scan History</span>
+            </button>
           </div>
 
           {activeTab === 'scanner' ? (
@@ -217,15 +285,24 @@ const AdhocCoveragePage = () => {
                 <h2 className="text-xl font-bold text-orange-600 flex items-center gap-2">
                   <BarChart2 size={22} /> Coverage Scanner
                 </h2>
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
-                >
-                  <PlusCircle size={18} /> New Scan
-                </button>
+                
               </div>
 
               {/* Status messages and results */}
+              {jobId && jobStatus && jobStatus !== 'completed' && jobStatus !== 'failed' && (
+                <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md">
+                  <div className="flex items-start space-x-3">
+                    <Loader2 className="h-5 w-5 text-orange-500 animate-spin mt-0.5" />
+                    <div>
+                      <p className="text-orange-700 font-medium">Coverage scan in progress</p>
+                      <div className="mt-2 text-xs text-orange-400">
+                        Job ID: {jobId} | Status: {jobStatus}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {error && (
                 <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md flex items-center gap-2 text-orange-700">
                   <AlertCircle size={18} className="text-orange-500" /> {error}
@@ -262,8 +339,95 @@ const AdhocCoveragePage = () => {
                   )}
                 </div>
               )}
+              <div className="flex flex-col md:flex-row md:items-end md:space-x-4">
+                <div className="flex-1">
+                  <label className="block text-sm text-orange-700 mb-1">Repository URL</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200"
+                    placeholder="https://github.com/owner/repo"
+                    value={repoUrl}
+                    onChange={e => setRepoUrl(e.target.value)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm text-orange-700 mb-1">Branch</label>
+                  <div className="relative">
+                    <select
+                      className="w-full p-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200"
+                      value={branch}
+                      onChange={e => setBranch(e.target.value)}
+                      disabled={loadingBranches}
+                    >
+                      <option value="">
+                        {loadingBranches ? 'Fetching branches ...' : 'Select a branch'}
+                      </option>
+                      {!loadingBranches && branches.map((b) => (
+                        <option 
+                          key={b.name} 
+                          value={b.name}
+                        >
+                          {b.name} {b.isDefault ? '(default)' : ''} {b.protected ? '(protected)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <button
+                  onClick={handleScan}
+                  disabled={!repoUrl || scanLoading}
+                  className="mt-4 md:mt-0 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-md hover:from-red-500 hover:to-orange-500 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                >
+                  {scanLoading ? <Loader2 size={16} className="animate-spin" /> : <BarChart2 size={16} />}
+                  <span>Run Coverage Scan</span>
+                </button>
+              </div>
             </>
-          ) : activeTab === 'history' ? (
+          ) : activeTab === 'branches' ? (
+            <div className="mt-4">
+              {repoUrl ? (
+                <BranchCoverageList
+                  repository={repoUrl}
+                  onBranchSelect={(b1, b2) => {
+                    setCompareBranch1(b1);
+                    setCompareBranch2(b2);
+                    setActiveTab('compare');
+                  }}
+                />
+              ) : (
+                <div className="text-center py-12 bg-orange-50 rounded-lg border border-orange-200">
+                  <p className="text-orange-400">Enter a repository URL to view branch coverage</p>
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'compare' ? (
+            <div className="mt-4">
+              {repoUrl ? (
+                <BranchComparison
+                  repository={repoUrl}
+                  defaultBranch1={compareBranch1}
+                  defaultBranch2={compareBranch2}
+                />
+              ) : (
+                <div className="text-center py-12 bg-orange-50 rounded-lg border border-orange-200">
+                  <p className="text-orange-400">Enter a repository URL to compare branches</p>
+                </div>
+              )}
+            </div>
+          ) : activeTab === 'jobs' ? (
+            <ActiveJobsList 
+              onRefresh={() => {
+                checkActiveJobs();
+                // Reset job ID and status if they were being tracked
+                if (jobId && (jobStatus === 'completed' || jobStatus === 'failed')) {
+                  setJobId(null);
+                  setJobStatus(null);
+                }
+              }}
+              onViewResults={handleViewJobResults}
+            />
+          ) : (
+            // Scan History tab content (moved to end)
             <div className="mt-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-orange-700">
@@ -282,8 +446,6 @@ const AdhocCoveragePage = () => {
                   </select>
                 </div>
               </div>
-
-              {/* Enhanced history table */}
               <div className="bg-white rounded-lg shadow border border-orange-100 p-4">
                 {loadingRepos ? (
                   <div className="flex items-center gap-2 text-orange-500">
@@ -324,13 +486,11 @@ const AdhocCoveragePage = () => {
                         ))}
                       </tbody>
                     </table>
-
                     {/* Coverage history details */}
                     {historyRepo && (
                       <div className="mt-6">
                         <CoverageHistoryChart 
                           data={coverageTrends}
-                          
                         />
                         <div className="mt-4">
                           <CoverageHistoryList 
@@ -350,19 +510,6 @@ const AdhocCoveragePage = () => {
                 )}
               </div>
             </div>
-          ) : (
-            // Jobs tab content
-            <ActiveJobsList 
-              onRefresh={() => {
-                checkActiveJobs();
-                // Reset job ID and status if they were being tracked
-                if (jobId && (jobStatus === 'completed' || jobStatus === 'failed')) {
-                  setJobId(null);
-                  setJobStatus(null);
-                }
-              }}
-              onViewResults={handleViewJobResults}
-            />
           )}
         </div>
 
@@ -390,17 +537,6 @@ const AdhocCoveragePage = () => {
                     onChange={e => setRepoUrl(e.target.value)}
                   />
                 </div>
-                <div>
-                  <label className="block text-sm text-orange-700 mb-1">Branch (optional)</label>
-                  <input
-                    type="text"
-                    className="w-full p-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200"
-                    placeholder="e.g. main"
-                    value={branch}
-                    onChange={e => setBranch(e.target.value)}
-                  />
-                </div>
-
                 {/* Advanced settings section */}
                 <div className="mt-3">
                   <button 
@@ -478,3 +614,4 @@ const AdhocCoveragePage = () => {
 };
 
 export default AdhocCoveragePage;
+

@@ -249,11 +249,19 @@ export const getCoverageTrends = async (repoUrl: string, days = 30) => {
 };
 
 export const scanMultipleBranches = async (repoUrl: string, branches: string[]) => {
-  return api.post('/api/coverage/branches', { repo_url: repoUrl, branches });
+  return api.post('/api/coverage/branches', { 
+    repo_url: repoUrl, 
+    branches,
+    async: true
+  });
 };
 
 export const getBranchCoverage = async (repoUrl: string) => {
   return api.get('api/coverage/branches', { params: { repo_url: repoUrl } });
+};
+
+export const getBranchList = async (repoUrl: string) => {
+  return api.get('/api/repositories/branches', { params: { repo_url: repoUrl } });
 };
 
 export const compareBranchCoverage = async (repoUrl: string, branch1: string, branch2: string) => {
@@ -276,6 +284,10 @@ export const getDashboardMetrics = async () => {
 
 export const getUserScannedRepositories = async () => {
   return api.get('/api/coverage/scanned-repos');
+};
+
+export const getBranchesWithHistory = async (repoUrl: string) => {
+  return api.get('/api/coverage/branches/history', { params: { repo_url: repoUrl } });
 };
 
 export default api;

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Repository } from '@/types/repository';
-import { runCoverageScan, getCoverageJobStatus, getCoverageHistory, getCoverageTrends, getUserRepositories, getCoverageById, getActiveJobs } from "@/services/api";
+import { runCoverageScan, getCoverageJobStatus, getCoverageHistory, getCoverageTrends, getUserRepositories, getCoverageById, getActiveJobs, getBranchList } from "@/services/api";
 import { AlertCircle, BarChart2, History, RefreshCw, GitBranch, GitMerge, GitCompare, Search, Loader2, CheckCircle2, Activity } from 'lucide-react';
 import { CoverageResponse, CoverageHistory, CoverageTrend } from '@/types/coverage';
 import { 
@@ -58,7 +58,7 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
     useAsync: boolean;
     cloneTimeout: number;
   }>({
-    useAsync: false,
+    useAsync: true,
     cloneTimeout: 300,
   });
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -67,6 +67,9 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
   const [scanLoadingMap, setScanLoadingMap] = useState<Record<string, boolean>>({});
+
+  const [branchList, setBranchList] = useState<string[]>([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
 
   const searchParams = useSearchParams();
 
@@ -308,7 +311,29 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
     setSelectedRepo(repoUrl);
     setCoverageResult(null);
     setCoverageError(null);
+    setScanBranch(''); // Reset branch selection
+    setBranchList([]); // Reset branch list
+
     if (repoUrl) {
+      // Fetch branches for the selected repository
+      setLoadingBranches(true);
+      getBranchList(repoUrl)
+        .then(response => {
+          const branches = response.data.branches.map((b: any) => b.name || '');
+          setBranchList(branches);
+          // Optionally set default branch if available
+          const defaultBranch = response.data.branches.find((b: any) => b.is_default);
+          if (defaultBranch) {
+            setScanBranch(defaultBranch.name);
+          }
+        })
+        .catch(err => {
+          console.error('Failed to fetch branches:', err);
+        })
+        .finally(() => {
+          setLoadingBranches(false);
+        });
+
       fetchCoverageHistory(repoUrl);
       // Optionally update the URL param for repo selection
       if (window && window.history && window.location) {
@@ -495,14 +520,24 @@ const CoverageTab: React.FC<CoverageTabProps> = ({
               <div className="flex flex-col md:flex-row md:items-end md:space-x-4">
                 {renderRepositoryDropdown()}
                 <div className="flex-1">
-                  <label className="block text-sm text-orange-700 mb-1">Branch (optional)</label>
-                  <input
-                    type="text"
-                    className="w-full p-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200"
-                    placeholder="e.g. main"
-                    value={scanBranch}
-                    onChange={e => setScanBranch(e.target.value)}
-                  />
+                  <label className="block text-sm text-orange-700 mb-1">Branch</label>
+                  <div className="relative">
+                    <select
+                      className="w-full p-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200"
+                      value={scanBranch}
+                      onChange={e => setScanBranch(e.target.value)}
+                      disabled={loadingBranches}
+                    >
+                      <option value="">
+                        {loadingBranches ? 'Fetching branches ...' : 'Select a branch'}
+                      </option>
+                      {!loadingBranches && branchList.map(branch => (
+                        <option key={branch} value={branch}>
+                          {branch}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <button
                   onClick={handleCoverageScan}

@@ -46,16 +46,29 @@ func GetDashboardMetrics(c *gin.Context) {
 	coverageTrend := []map[string]interface{}{}
 	trendCursor, _ := coverageColl.Find(ctx, bson.M{"user_id": userID})
 	for trendCursor.Next(ctx) {
-		var record models.CoverageHistory
-		if err := trendCursor.Decode(&record); err == nil {
-			for _, scan := range record.ScanHistory {
-				if scan.Timestamp.After(time.Now().AddDate(0, 0, -30)) {
-					coverageTrend = append(coverageTrend, map[string]interface{}{
-						"date":     scan.Timestamp.Format("2006-01-02"),
-						"coverage": scan.TotalCoverage,
-						"repo":     record.Repository,
-						"branch":   record.Branch,
-					})
+		var repo struct {
+			Repository string `bson:"repository"`
+			Branches   map[string]struct {
+				History []struct {
+					TotalCoverage float64   `bson:"total_coverage"`
+					Timestamp     time.Time `bson:"timestamp"`
+					CommitHash    string    `bson:"commit_hash"`
+				} `bson:"history"`
+				TotalScans int `bson:"total_scans"`
+			} `bson:"branches"`
+		}
+		if err := trendCursor.Decode(&repo); err == nil {
+			for branchName, branch := range repo.Branches {
+				for _, scan := range branch.History {
+					if scan.Timestamp.After(time.Now().AddDate(0, 0, -30)) {
+						coverageTrend = append(coverageTrend, map[string]interface{}{
+							"date":     scan.Timestamp.Format("2006-01-02"),
+							"coverage": scan.TotalCoverage,
+							"repo":     repo.Repository,
+							"branch":   branchName,
+							"scans":    branch.TotalScans,
+						})
+					}
 				}
 			}
 		}
@@ -63,11 +76,32 @@ func GetDashboardMetrics(c *gin.Context) {
 
 	// Test Results Breakdown (latest scan)
 	testResults := map[string]int{"passed": 0, "failed": 0, "skipped": 0, "error": 0}
-	var latestScan models.CoverageHistory
-	err = coverageColl.FindOne(ctx, bson.M{"user_id": userID}, options.FindOne().SetSort(bson.M{"timestamp": -1})).Decode(&latestScan)
-	if err == nil && len(latestScan.ScanHistory) > 0 {
-		last := latestScan.ScanHistory[len(latestScan.ScanHistory)-1]
-		for _, f := range last.Files {
+	var latestRepo struct {
+		Branches map[string]struct {
+			History []struct {
+				Files []struct {
+					Status string `bson:"status"`
+				} `bson:"files"`
+				Timestamp time.Time `bson:"timestamp"`
+			} `bson:"history"`
+			LastUpdated time.Time `bson:"last_updated"`
+		} `bson:"branches"`
+	}
+
+	err = coverageColl.FindOne(ctx, bson.M{"user_id": userID},
+		options.FindOne().SetSort(bson.M{"branches.main.last_updated": -1})).Decode(&latestRepo)
+	if err == nil {
+		var latestFiles []struct{ Status string `bson:"status"` }
+		var latestTime time.Time
+
+		for _, branch := range latestRepo.Branches {
+			if len(branch.History) > 0 && branch.LastUpdated.After(latestTime) {
+				latestTime = branch.LastUpdated
+				latestFiles = branch.History[len(branch.History)-1].Files
+			}
+		}
+
+		for _, f := range latestFiles {
 			switch f.Status {
 			case "Success":
 				testResults["passed"]++
@@ -97,16 +131,29 @@ func GetDashboardMetrics(c *gin.Context) {
 		}
 	}
 
-	// Coverage by Repository (latest scan per repo)
+	// Coverage by Repository (latest coverage across all branches)
 	coverageByRepo := []map[string]interface{}{}
 	repoCursor, _ := coverageColl.Find(ctx, bson.M{"user_id": userID})
 	for repoCursor.Next(ctx) {
-		var record models.CoverageHistory
-		if err := repoCursor.Decode(&record); err == nil && len(record.ScanHistory) > 0 {
-			last := record.ScanHistory[len(record.ScanHistory)-1]
+		var repo struct {
+			Repository string `bson:"repository"`
+			Branches   map[string]struct {
+				LatestCoverage float64   `bson:"latest_coverage"`
+				LastUpdated    time.Time `bson:"last_updated"`
+				TotalScans     int       `bson:"total_scans"`
+			} `bson:"branches"`
+		}
+		if err := repoCursor.Decode(&repo); err == nil {
+			// Find the highest coverage across all branches
+			var maxCoverage float64
+			for _, branch := range repo.Branches {
+				if branch.LatestCoverage > maxCoverage {
+					maxCoverage = branch.LatestCoverage
+				}
+			}
 			coverageByRepo = append(coverageByRepo, map[string]interface{}{
-				"repo":     record.Repository,
-				"coverage": last.TotalCoverage,
+				"repo":     repo.Repository,
+				"coverage": maxCoverage,
 			})
 		}
 	}
@@ -115,17 +162,30 @@ func GetDashboardMetrics(c *gin.Context) {
 	recentScans := []map[string]interface{}{}
 	scanCursor, _ := coverageColl.Find(ctx, bson.M{"user_id": userID})
 	for scanCursor.Next(ctx) {
-		var record models.CoverageHistory
-		if err := scanCursor.Decode(&record); err == nil {
-			for _, scan := range record.ScanHistory {
-				if scan.Timestamp.After(time.Now().AddDate(0, 0, -30)) {
-					recentScans = append(recentScans, map[string]interface{}{
-						"date":     scan.Timestamp.Format("2006-01-02 15:04:05"),
-						"repo":     record.Repository,
-						"coverage": scan.TotalCoverage,
-						"branch":   record.Branch,
-						"commit":   scan.CommitHash,
-					})
+		var repo struct {
+			Repository string `bson:"repository"`
+			Branches   map[string]struct {
+				History []struct {
+					TotalCoverage float64   `bson:"total_coverage"`
+					Timestamp     time.Time `bson:"timestamp"`
+					CommitHash    string    `bson:"commit_hash"`
+				} `bson:"history"`
+				TotalScans int `bson:"total_scans"`
+			} `bson:"branches"`
+		}
+		if err := scanCursor.Decode(&repo); err == nil {
+			for branchName, branch := range repo.Branches {
+				for _, scan := range branch.History {
+					if scan.Timestamp.After(time.Now().AddDate(0, 0, -30)) {
+						recentScans = append(recentScans, map[string]interface{}{
+							"date":     scan.Timestamp.Format("2006-01-02 15:04:05"),
+							"repo":     repo.Repository,
+							"coverage": scan.TotalCoverage,
+							"branch":   branchName,
+							"commit":   scan.CommitHash,
+							"scans":    branch.TotalScans,
+						})
+					}
 				}
 			}
 		}

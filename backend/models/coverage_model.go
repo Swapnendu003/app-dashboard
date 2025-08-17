@@ -29,6 +29,6 @@ type CoverageHistory struct {
 	Timestamp     time.Time          `json:"timestamp" bson:"timestamp"`
 	CommitHash    string             `json:"commit_hash,omitempty" bson:"commit_hash,omitempty"`
 	UserID        primitive.ObjectID `json:"user_id,omitempty" bson:"user_id,omitempty"`
-	NumberOfScans int                `json:"number_of_scans" bson:"number_of_scans"`
-	ScanHistory   []ScanRecord       `json:"scan_history" bson:"scan_history"`
+	TotalScans    int                `json:"total_scans" bson:"total_scans"`
+	BranchScans   int                `json:"branch_scans" bson:"branch_scans"`
 }

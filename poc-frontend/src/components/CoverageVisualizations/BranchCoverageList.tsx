@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getBranchCoverage, scanMultipleBranches } from '@/services/api';
+import { getBranchCoverage, scanMultipleBranches, getBranchList } from '@/services/api';
 import { BranchCoverage, MultiBranchScanResult } from '@/types/coverage';
 import { AlertCircle, Check, AlertTriangle, Clock } from 'lucide-react';
 
@@ -7,6 +7,23 @@ interface BranchCoverageListProps {
   repository: string;
   onBranchSelect?: (branch1: string, branch2: string) => void;
 }
+
+interface Branch {
+  name: string;
+  commit_sha?: string;
+  protected?: boolean;
+  is_default?: boolean;
+}
+
+const BranchSkeleton = () => (
+  <div className="animate-pulse space-y-4">
+    <div className="flex flex-wrap gap-2 mb-4">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="h-10 w-32 bg-orange-100 rounded"></div>
+      ))}
+    </div>
+  </div>
+);
 
 export const BranchCoverageList: React.FC<BranchCoverageListProps> = ({
   repository,
@@ -16,15 +33,33 @@ export const BranchCoverageList: React.FC<BranchCoverageListProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<MultiBranchScanResult | null>(null);
-  const [availableBranches, setAvailableBranches] = useState<string[]>([]);
+  const [scanJobs, setScanJobs] = useState<{ branch: string; job_id: string }[] | null>(null);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [availableBranches, setAvailableBranches] = useState<Branch[]>([]);
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
 
   useEffect(() => {
     if (!repository) return;
     
-    fetchBranchCoverage();
-    setAvailableBranches(['main', 'develop', 'feature/coverage', 'bugfix/tests']);
+    const fetchData = async () => {
+      try {
+        setLoadingBranches(true);
+        const [coverageResponse, branchesResponse] = await Promise.all([
+          fetchBranchCoverage(),
+          getBranchList(repository)
+        ]);
+        
+        setAvailableBranches(branchesResponse.data.branches || []);
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        setError('Failed to load repository data');
+      } finally {
+        setLoadingBranches(false);
+      }
+    };
+
+    fetchData();
   }, [repository]);
 
   const fetchBranchCoverage = async () => {
@@ -50,9 +85,11 @@ export const BranchCoverageList: React.FC<BranchCoverageListProps> = ({
     try {
       setIsScanning(true);
       setError(null);
+      setScanJobs(null);
+      setScanMessage(null);
       const response = await scanMultipleBranches(repository, selectedBranches);
-      setScanResult(response.data);
-      
+      setScanJobs(response.data.jobs || []);
+      setScanMessage(response.data.message || 'Started coverage scans');
       await fetchBranchCoverage();
     } catch (err) {
       console.error('Error scanning branches:', err);
@@ -129,70 +166,58 @@ export const BranchCoverageList: React.FC<BranchCoverageListProps> = ({
 
       <div className="mb-6 p-4 bg-orange-50 rounded-lg border border-orange-100">
         <h3 className="text-md font-medium mb-3 text-orange-700">Scan Branches</h3>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {availableBranches.map(branch => (
-            <label key={branch} className="flex items-center p-2 border border-orange-200 rounded cursor-pointer hover:bg-orange-100 transition-colors">
-              <input
-                type="checkbox"
-                checked={selectedBranches.includes(branch)}
-                onChange={() => toggleBranchSelection(branch)}
-                className="mr-2"
-              />
-              <span className="text-orange-700" title={branch}>{formatBranchName(branch)}</span>
-            </label>
-          ))}
-        </div>
+        {loadingBranches ? (
+          <BranchSkeleton />
+        ) : (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {availableBranches.map(branch => (
+              <label 
+                key={`${branch.name}-${branch.commit_sha || ''}`} 
+                className="flex items-center p-2 border border-orange-200 rounded cursor-pointer hover:bg-orange-100 transition-colors"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedBranches.includes(branch.name)}
+                  onChange={() => toggleBranchSelection(branch.name)}
+                  className="mr-2"
+                />
+                <span className="text-orange-700" title={branch.name}>
+                  {formatBranchName(branch.name)}
+                  {branch.is_default && (
+                    <span className="ml-1 text-xs text-orange-400">(default)</span>
+                  )}
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
         <button
           onClick={handleScanBranches}
-          disabled={isScanning || selectedBranches.length === 0}
+          disabled={isScanning || selectedBranches.length === 0 || loadingBranches}
           className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded hover:from-red-500 hover:to-orange-500 disabled:opacity-50 transition-colors"
         >
           {isScanning ? 'Scanning...' : 'Scan Selected Branches'}
         </button>
+        {scanJobs && scanMessage && (
+          <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md">
+            <div className="text-orange-700 font-medium mb-2">{scanMessage}</div>
+            <div className="text-sm text-orange-600">
+              {scanJobs.map(job => (
+                <div key={job.job_id} className="mb-1">
+                  <span className="font-mono text-orange-900">{job.branch}</span>
+                  <span className="mx-2 text-orange-400">→</span>
+                  <span className="font-mono text-orange-500">Job ID: {job.job_id}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 text-xs text-orange-400">
+              You can track the progress of each job in the <b>Active Jobs</b> tab.
+            </div>
+          </div>
+        )}
       </div>
 
-      {scanResult && (
-        <div className="mb-6 p-4 bg-orange-50 rounded-lg border border-orange-100">
-          <h3 className="text-md font-medium mb-3 text-orange-700">Scan Results</h3>
-          <div className="text-sm mb-2 text-orange-400">
-            Successfully scanned {scanResult.successful} of {scanResult.total_scanned} branches
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full rounded-lg overflow-hidden border border-orange-100">
-              <thead className="bg-orange-50">
-                <tr>
-                  <th className="py-2 px-4 text-left text-sm font-medium text-orange-700">Branch</th>
-                  <th className="py-2 px-4 text-left text-sm font-medium text-orange-700">Status</th>
-                  <th className="py-2 px-4 text-right text-sm font-medium text-orange-700">Coverage</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-orange-100">
-                {scanResult.branches.map((branch, index) => (
-                  <tr key={index} className="bg-white hover:bg-orange-50 transition-colors">
-                    <td className="py-2 px-4 text-orange-900">
-                      <span title={branch.branch}>{formatBranchName(branch.branch)}</span>
-                    </td>
-                    <td className={`py-2 px-4 flex items-center ${getStatusColor(branch.status)}`}>
-                      {getStatusIcon(branch.status)}
-                      <span className="ml-2">{branch.status}</span>
-                      {branch.error && (
-                        <span className="block text-xs text-orange-400 ml-5" title={branch.error}>
-                          {branch.error.length > 30 ? branch.error.substring(0, 27) + '...' : branch.error}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 px-4 text-right text-orange-600 font-medium">
-                      {branch.coverage !== undefined ? `${branch.coverage.toFixed(1)}%` : '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      <div>
+      {/* <div>
         <h3 className="text-md font-medium mb-3 text-orange-700">Coverage by Branch</h3>
         {loading ? (
           <div className="flex justify-center items-center h-24">
@@ -254,7 +279,7 @@ export const BranchCoverageList: React.FC<BranchCoverageListProps> = ({
             </table>
           </div>
         )}
-      </div>
+      </div> */}
     </div>
   );
 };

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { CoverageHistory } from '@/types/coverage';
-import { Search, GitBranch, Calendar, Code } from 'lucide-react';
+import { Search, GitBranch, Calendar, Code, Hash } from 'lucide-react';
 
 interface CoverageHistoryListProps {
   coverageHistory: CoverageHistory[];
@@ -16,23 +16,12 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredHistory, setFilteredHistory] = useState<CoverageHistory[]>(coverageHistory);
 
-  const allScans = coverageHistory.flatMap(history =>
-    history.scan_history?.map(scan => ({
-      ...scan,
-      branch: history.branch,
-      commit_hash: scan.commit_hash,
-      id: history.id,
-      repository: history.repository,
-      user_id: history.user_id,
-    })) || []
-  );
-
   useEffect(() => {
     if (!searchQuery.trim()) {
-      setFilteredHistory(allScans);
+      setFilteredHistory(coverageHistory);
     } else {
       const query = searchQuery.toLowerCase();
-      const filtered = allScans.filter(item =>
+      const filtered = coverageHistory.filter(item =>
         (item.branch && item.branch.toLowerCase().includes(query)) ||
         (item.commit_hash && item.commit_hash.toLowerCase().includes(query))
       );
@@ -92,25 +81,26 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
           <table className="min-w-full rounded-lg overflow-hidden border border-orange-100">
             <thead className="bg-orange-50">
               <tr>
-                <th className="py-2 px-4 text-left text-sm font-medium text-orange-700">Branch</th>
-                <th className="py-2 px-4 text-left text-sm font-medium text-orange-700">Commit</th>
-                <th className="py-2 px-4 text-right text-sm font-medium text-orange-700">Coverage</th>
-                <th className="py-2 px-4 text-right text-sm font-medium text-orange-700">Scanned</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Branch</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Commit</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Coverage</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Total Scans</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Scanned</th>
                 <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-orange-100">
-              {filteredHistory.map((history, index) => (
-                <tr key={history.id + history.timestamp} className="bg-white hover:bg-orange-50 transition-colors">
-                  <td className="py-2 px-4 text-orange-900">
-                    <div className="flex items-center">
+              {filteredHistory.map((history) => (
+                <tr key={`${history.id}-${history.branch}`} className="bg-white hover:bg-orange-50 transition-colors">
+                  <td className="py-2 px-4 text-center text-orange-900">
+                    <div className="flex items-center justify-center">
                       <GitBranch size={14} className="mr-2 text-orange-300" />
                       <span>{history.branch || 'default'}</span>
                     </div>
                   </td>
-                  <td className="py-2 px-4 text-orange-400 font-mono text-xs">
+                  <td className="py-2 px-4 text-center text-orange-400 font-mono text-xs">
                     {history.commit_hash ? (
-                      <div className="flex items-center">
+                      <div className="flex items-center justify-center">
                         <Code size={14} className="mr-2 text-orange-300" />
                         {history.commit_hash.substring(0, 8)}
                       </div>
@@ -118,11 +108,17 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
                       '-'
                     )}
                   </td>
-                  <td className={`py-2 px-4 text-right font-semibold ${getCoverageColorClass(history.total_coverage)}`}>
+                  <td className={`py-2 px-4 text-center font-semibold ${getCoverageColorClass(history.total_coverage)}`}>
                     {history.total_coverage.toFixed(1)}%
                   </td>
-                  <td className="py-2 px-4 text-right text-sm text-orange-400">
-                    <div className="flex items-center justify-end">
+                  <td className="py-2 px-4 text-center text-sm text-orange-600">
+                    <div className="flex items-center justify-center">
+                      <Hash size={14} className="mr-2 text-orange-300" />
+                      {history.branch_scans || 0}  
+                    </div>
+                  </td>
+                  <td className="py-2 px-4 text-center text-sm text-orange-400">
+                    <div className="flex items-center justify-center">
                       <Calendar size={14} className="mr-2 text-orange-300" />
                       {formatDate(history.timestamp)}
                     </div>

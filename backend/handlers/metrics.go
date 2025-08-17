@@ -56,22 +56,29 @@ func GetCoverageMetrics(c *gin.Context) {
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 
 	for cursor.Next(ctx) {
-		var history struct {
-			Repository    string `bson:"repository"`
-			NumberOfScans int    `bson:"number_of_scans"`
-			ScanHistory   []struct {
-				TotalCoverage float64   `bson:"total_coverage"`
-				Timestamp     time.Time `bson:"timestamp"`
-			} `bson:"scan_history"`
+		var repo struct {
+			Repository string `bson:"repository"`
+			TotalScans int    `bson:"total_scans"`
+			Branches   map[string]struct {
+				History []struct {
+					TotalCoverage float64   `bson:"total_coverage"`
+					Timestamp     time.Time `bson:"timestamp"`
+				} `bson:"history"`
+				TotalScans int `bson:"total_scans"`
+			} `bson:"branches"`
 		}
-		if err := cursor.Decode(&history); err == nil {
-			uniqueRepos[history.Repository] = struct{}{}
-			totalScans += history.NumberOfScans
-			for _, scan := range history.ScanHistory {
-				totalCoverage += scan.TotalCoverage
-				scanCount++
-				if scan.Timestamp.After(sevenDaysAgo) {
-					recentScans++
+
+		if err := cursor.Decode(&repo); err == nil {
+			uniqueRepos[repo.Repository] = struct{}{}
+			totalScans += repo.TotalScans
+
+			for _, branch := range repo.Branches {
+				for _, scan := range branch.History {
+					totalCoverage += scan.TotalCoverage
+					scanCount++
+					if scan.Timestamp.After(sevenDaysAgo) {
+						recentScans++
+					}
 				}
 			}
 		}

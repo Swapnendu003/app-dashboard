@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { compareBranchCoverage } from '@/services/api';
+import { compareBranchCoverage, getBranchesWithHistory } from '@/services/api';
 import { BranchCompareResult, FileDiff } from '@/types/coverage';
 import FileHeatmap from './FileHeatmap';
 import { ArrowUp, ArrowDown, Minus, AlertCircle } from 'lucide-react';
+import BranchCompareCharts from './BranchCompareCharts';
+import FileCoverageAnalytics from './FileCoverageAnalytics';
 
 interface BranchComparisonProps {
   repository: string;
@@ -20,18 +22,41 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
   const [compareResult, setCompareResult] = useState<BranchCompareResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [availableBranches, setAvailableBranches] = useState<string[]>([defaultBranch1, defaultBranch2]);
+  const [availableBranches, setAvailableBranches] = useState<{ name: string }[]>([{ name: defaultBranch1 }, { name: defaultBranch2 }]);
 
   useEffect(() => {
     const fetchBranches = async () => {
       try {
-        setAvailableBranches(['main', 'develop', 'feature/coverage', 'bugfix/tests']);
+        const response = await getBranchesWithHistory(repository);
+        const branches = response.data.branches || [];
+        const branchObjs = branches.map((name: string) => ({ name }));
+        setAvailableBranches(branchObjs);
+
+        if (branchObjs.length > 0) {
+          const mainBranch = branchObjs.find((b: { name: string }) => ['main', 'master'].includes(b.name.toLowerCase())) || branchObjs[0];
+          const developBranch = branchObjs.find((b: { name: string }) => b.name.toLowerCase() === 'develop') || branchObjs[1];
+
+          setBranch1(mainBranch.name);
+          if (developBranch && developBranch.name !== mainBranch.name) {
+            setBranch2(developBranch.name);
+          } else if (branchObjs.length > 1) {
+            setBranch2(branchObjs[1].name);
+          } else {
+            setBranch2(branchObjs[0].name);
+          }
+        }
       } catch (err) {
         console.error('Error fetching branches:', err);
+        setError('Failed to fetch repository branches');
+        // Fallback to default branches
+        setAvailableBranches([{ name: defaultBranch1 }, { name: defaultBranch2 }]);
       }
     };
-    fetchBranches();
-  }, [repository]);
+
+    if (repository) {
+      fetchBranches();
+    }
+  }, [repository, defaultBranch1, defaultBranch2]);
 
   const handleCompare = async () => {
     if (branch1 === branch2) {
@@ -124,7 +149,7 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
             className="w-full p-2 bg-orange-50 text-orange-900 rounded border border-orange-200"
           >
             {availableBranches.map((branch) => (
-              <option key={branch} value={branch}>{branch}</option>
+              <option key={branch.name} value={branch.name}>{branch.name}</option>
             ))}
           </select>
         </div>
@@ -136,7 +161,7 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
             className="w-full p-2 bg-orange-50 text-orange-900 rounded border border-orange-200"
           >
             {availableBranches.map((branch) => (
-              <option key={branch} value={branch}>{branch}</option>
+              <option key={branch.name} value={branch.name}>{branch.name}</option>
             ))}
           </select>
         </div>
@@ -192,13 +217,11 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
                   )}
                 </div>
               </div>
-              <div
-                className={`mt-4 p-3 rounded text-center font-semibold flex items-center justify-center text-lg ${
-                  compareResult.diff_label === 'better' ? 'bg-green-100 border border-green-300 text-green-600' : 
-                  compareResult.diff_label === 'worse' ? 'bg-red-100 border border-red-300 text-red-600' : 
-                  'bg-orange-50 text-orange-400'
-                }`}
-              >
+              <div className={`mt-4 p-3 rounded text-center font-semibold ${
+                compareResult.diff_label === 'better' ? 'bg-green-100 text-green-600' : 
+                compareResult.diff_label === 'worse' ? 'bg-red-100 text-red-600' : 
+                'bg-orange-100 text-orange-600'
+              }`}>
                 {getDiffIcon(compareResult.coverage_diff)}
                 <span className="ml-2">
                   {compareResult.coverage_diff > 0 && '+'}
@@ -210,13 +233,42 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
               </div>
             </div>
             <div className="bg-orange-50 p-4 rounded-lg border border-orange-100">
-              <h3 className="text-md font-semibold mb-2 text-orange-700">Coverage Distribution</h3>
-              <FileHeatmap files={compareResult.file_diffs.map(f => ({ 
-                file: f.file, 
-                coverage: f.branch2 
-              }))} />
+              <h3 className="text-md font-semibold mb-2 text-orange-700">Coverage Statistics</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center p-3 bg-white rounded-lg">
+                  <p className="text-sm text-orange-400">Total Files</p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {compareResult.file_diffs.length}
+                  </p>
+                </div>
+                <div className="text-center p-3 bg-white rounded-lg">
+                  <p className="text-sm text-orange-400">Average Change</p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {(compareResult.file_diffs.reduce((acc, curr) => acc + Math.abs(curr.diff), 0) / compareResult.file_diffs.length).toFixed(1)}%
+                  </p>
+                </div>
+                <div className="text-center p-3 bg-white rounded-lg">
+                  <p className="text-sm text-orange-400">Improved Files</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {compareResult.file_diffs.filter(d => d.diff > 0).length}
+                  </p>
+                </div>
+                <div className="text-center p-3 bg-white rounded-lg">
+                  <p className="text-sm text-orange-400">Declined Files</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {compareResult.file_diffs.filter(d => d.diff < 0).length}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
+
+          <FileCoverageAnalytics
+            fileDiffs={compareResult.file_diffs}
+            branch1={compareResult.branch1}
+            branch2={compareResult.branch2}
+          />
+
           {renderFileDiffs()}
         </div>
       )}
