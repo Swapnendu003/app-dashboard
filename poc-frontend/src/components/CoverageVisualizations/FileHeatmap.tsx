@@ -7,10 +7,16 @@ declare global {
 }
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Search, AlertCircle, Grid, List, BarChart3, TrendingUp, FileText, Zap, PieChart } from 'lucide-react';
+import { Search, AlertCircle, Grid, List, BarChart3, TrendingUp, FileText, Zap, PieChart, Info } from 'lucide-react';
 
 import SpotlightCard from '../SpotLightCard';
 import AnimatedList from '../AnimatedList';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const generateMockFiles = (count: number) => {
   const extensions = ['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.go', '.rs'];
@@ -263,7 +269,7 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
   // Chart options
   const pieChartOption = useMemo(() => ({
     title: {
-      text: 'Coverage Distribution',
+      // text: 'Coverage Distribution',
       left: 'center',
       textStyle: {
         fontSize: 16,
@@ -302,7 +308,7 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
 
   const barChartOption = useMemo(() => ({
     title: {
-      text: 'Coverage by Directory',
+      // text: 'Coverage by Directory',
       left: 'center',
       textStyle: {
         fontSize: 16,
@@ -350,16 +356,15 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
     setShowErrorModal(true);
   };
 
-  // Prepare top directories for AnimatedList
   const topDirectoryItems = useMemo(() => {
     return stats.directoryStats.map((dir) => {
       return (
         <div className="flex items-center justify-between w-full">
           <div className="flex-1 min-w-0">
-            <div className="font-mono text-sm text-purple-800 truncate" title={dir.directory}>
+            <div className="font-mono text-sm text-orange-800 truncate" title={dir.directory}>
               {dir.directory}
             </div>
-            <div className="text-xs text-purple-600">
+            <div className="text-xs text-orange-600">
               {dir.fileCount} files
             </div>
           </div>
@@ -489,11 +494,52 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
             <SpotlightCard className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 hover:shadow-lg transition-all duration-300"
               spotlightColor='rgba(251, 146, 60, 0.44)'
             >
+              <div className="flex items-center gap-2 mb-4">
+                <h4 className="text-lg font-semibold text-orange-700 flex items-center gap-2">
+                  <PieChart className="w-5 h-5" />
+                  Coverage Distribution
+                </h4>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Info className="h-4 w-4 text-orange-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        This pie chart shows how your files are distributed across different coverage ranges.
+                        Each slice represents the percentage of files within a specific coverage range.
+                        Hover over slices to see exact counts.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <EChartsComponent option={pieChartOption} height={350} />
             </SpotlightCard>
+            
             <SpotlightCard className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 hover:shadow-lg transition-all duration-300"
               spotlightColor='rgba(251, 146, 60, 0.44)'
             >
+              <div className="flex items-center gap-2 mb-4">
+                <h4 className="text-lg font-semibold text-orange-700 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5" />
+                  Coverage by Directory
+                </h4>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Info className="h-4 w-4 text-orange-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        This bar chart shows average coverage percentage by directory.
+                        Bar height indicates coverage level, and colors indicate coverage quality.
+                        Hover over bars to see file counts and exact coverage percentages.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <EChartsComponent option={barChartOption} height={350} />
             </SpotlightCard>
           </div>
@@ -502,10 +548,26 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Coverage Distribution Card */}
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300">
-              <h4 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                Coverage Distribution
-              </h4>
+              <div className="flex items-center gap-2 mb-4">
+                <h4 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5" />
+                  Coverage Distribution
+                </h4>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        This chart shows the distribution of files across coverage ranges.
+                        Each bar represents a coverage range, and its width shows the percentage of files.
+                        Hover over bars to see exact file counts and percentages.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <div className="space-y-3">
                 {stats.coverageRanges.map(({ range, color, count }) => {
                   const percentage = (count / files.length) * 100;
@@ -532,22 +594,37 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
             </div>
 
             <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-purple-200 hover:shadow-lg transition-all duration-300">
-              <h4 className="text-lg font-semibold text-purple-700 mb-4 flex items-center gap-2">
-                <Grid className="w-5 h-5" />
-                Top Directories
-              </h4>
+              <div className="flex items-center gap-2 mb-4">
+                <h4 className="text-lg font-semibold text-orange-700 flex items-center gap-2">
+                  <Grid className="w-5 h-5" />
+                  Top Directories
+                </h4>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Info className="h-4 w-4 text-orange-400 cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        This list shows your most active directories.
+                        The colored dot indicates average coverage level for each directory.
+                        File counts show the number of files in each directory.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <AnimatedList
                 items={topDirectoryItems}
                 showGradients={true}
                 enableArrowNavigation={true}
                 displayScrollbar={true}
-                itemClassName="bg-white hover:bg-purple-50 border border-purple-100 text-purple-900"
+                itemClassName="bg-white hover:bg-orange-50 border border-orange-100 "
                 onItemSelect={undefined}
               />
             </div>
           </div>
           
-          {/* File Extension Analysis */}
           <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl border border-indigo-200 hover:shadow-lg transition-all duration-300">
             <h4 className="text-lg font-semibold text-indigo-700 mb-4 flex items-center gap-2">
               <FileText className="w-5 h-5" />
@@ -673,7 +750,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
         </div>
       )}
 
-      {/* Enhanced Error Modal */}
       {showErrorModal && selectedFile && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 shadow-2xl">

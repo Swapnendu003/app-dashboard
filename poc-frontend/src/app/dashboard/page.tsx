@@ -380,7 +380,6 @@ const ProfessionalDashboard = () => {
 
   const handleRepoBarClick = (data: any) => {
     if (data && data.activeLabel) {
-      // Find the full repo URL from dashboardData.coverage_by_repo
       const repoObj = dashboardData?.coverage_by_repo?.find(
         (item: any) => item.repo?.split('/').pop() === data.activeLabel
       );
