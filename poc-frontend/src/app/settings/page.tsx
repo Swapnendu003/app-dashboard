@@ -91,6 +91,7 @@ const SettingsPage = () => {
                     alt="Profile"
                     fill
                     className="object-cover"
+                    unoptimized={true}
                   />
                 ) : (
                   <div className="w-full h-full bg-orange-50 flex items-center justify-center">

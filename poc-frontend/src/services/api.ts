@@ -290,4 +290,18 @@ export const getBranchesWithHistory = async (repoUrl: string) => {
   return api.get('/api/coverage/branches/history', { params: { repo_url: repoUrl } });
 };
 
+export const getJobErrorAnalysis = async (jobId: string) => {
+  try {
+    const response = await api.get(`/api/coverage/jobs/${jobId}/error-analysis`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching job error analysis:', error);
+    throw error;
+  }
+};
+
+export const acknowledgeWelcome = async () => {
+  return api.patch('/api/profile/welcome-ack');
+};
+
 export default api;

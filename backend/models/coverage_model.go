@@ -18,17 +18,21 @@ type ScanRecord struct {
 	Files         []FileCoverage `json:"files" bson:"files"`
 	Timestamp     time.Time      `json:"timestamp" bson:"timestamp"`
 	CommitHash    string         `json:"commit_hash,omitempty" bson:"commit_hash,omitempty"`
+	Status        string         `bson:"status" json:"status"`
+
 }
 
 type CoverageHistory struct {
 	ID            primitive.ObjectID `json:"id" bson:"_id"`
 	Repository    string             `json:"repository" bson:"repository"`
+	UserID        primitive.ObjectID `json:"user_id" bson:"user_id"`
 	Branch        string             `json:"branch" bson:"branch"`
 	TotalCoverage float64            `json:"total_coverage" bson:"total_coverage"`
 	Files         []FileCoverage     `json:"files" bson:"files"`
 	Timestamp     time.Time          `json:"timestamp" bson:"timestamp"`
 	CommitHash    string             `json:"commit_hash,omitempty" bson:"commit_hash,omitempty"`
-	UserID        primitive.ObjectID `json:"user_id,omitempty" bson:"user_id,omitempty"`
 	TotalScans    int                `json:"total_scans" bson:"total_scans"`
 	BranchScans   int                `json:"branch_scans" bson:"branch_scans"`
+	Status        string             `json:"status,omitempty" bson:"status,omitempty"` // Success, Failed, PartialSuccess
+	Error         string             `json:"error,omitempty" bson:"error,omitempty"`
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getBranchCoverage, scanMultipleBranches, getBranchList } from '@/services/api';
 import { BranchCoverage, MultiBranchScanResult } from '@/types/coverage';
 import { AlertCircle, Check, AlertTriangle, Clock } from 'lucide-react';
+import ScanButton from '@/components/ui/UniversalButton';
 
 interface BranchCoverageListProps {
   repository: string;
@@ -191,13 +192,12 @@ export const BranchCoverageList: React.FC<BranchCoverageListProps> = ({
             ))}
           </div>
         )}
-        <button
+        <ScanButton
           onClick={handleScanBranches}
           disabled={isScanning || selectedBranches.length === 0 || loadingBranches}
-          className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded hover:from-red-500 hover:to-orange-500 disabled:opacity-50 transition-colors"
-        >
-          {isScanning ? 'Scanning...' : 'Scan Selected Branches'}
-        </button>
+          loading={isScanning}
+          text="Scan Selected Branches"
+        />
         {scanJobs && scanMessage && (
           <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md">
             <div className="text-orange-700 font-medium mb-2">{scanMessage}</div>
@@ -216,70 +216,6 @@ export const BranchCoverageList: React.FC<BranchCoverageListProps> = ({
           </div>
         )}
       </div>
-
-      {/* <div>
-        <h3 className="text-md font-medium mb-3 text-orange-700">Coverage by Branch</h3>
-        {loading ? (
-          <div className="flex justify-center items-center h-24">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-orange-500"></div>
-          </div>
-        ) : branches.length === 0 ? (
-          <div className="text-center py-6 bg-orange-50 rounded-lg border border-orange-100">
-            <p className="text-orange-400">No branch coverage data available. Scan branches to generate coverage reports.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-lg border border-orange-100">
-            <table className="min-w-full rounded-lg overflow-hidden">
-              <thead className="bg-orange-50">
-                <tr>
-                  <th className="py-2 px-4 text-left text-sm font-medium text-orange-700">Branch</th>
-                  <th className="py-2 px-4 text-right text-sm font-medium text-orange-700">Coverage</th>
-                  <th className="py-2 px-4 text-right text-sm font-medium text-orange-700">Last Scanned</th>
-                  <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-orange-100">
-                {branches.map((branch, index) => (
-                  <tr key={branch.id} className="bg-white hover:bg-orange-50 transition-colors">
-                    <td className="py-2 px-4 text-orange-900">
-                      <span title={branch.branch}>{formatBranchName(branch.branch)}</span>
-                      {branch.commit_hash && (
-                        <span className="block text-xs text-orange-300 font-mono">
-                          {branch.commit_hash.substring(0, 7)}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2 px-4 text-right font-semibold text-orange-600">
-                      {branch.total_coverage.toFixed(1)}%
-                    </td>
-                    <td className="py-2 px-4 text-right text-sm text-orange-400">
-                      {formatDate(branch.timestamp)}
-                    </td>
-                    <td className="py-2 px-4 text-center">
-                      {onBranchSelect && branches.length > 1 && (
-                        <div className="flex gap-2 justify-center">
-                          <button
-                            className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
-                            onClick={() => onBranchSelect('main', branch.branch)}
-                          >
-                            Compare with main
-                          </button>
-                          <button
-                            className="text-xs px-2 py-1 bg-orange-50 text-orange-700 rounded hover:bg-orange-100 transition-colors"
-                            onClick={() => window.location.href = `/coverage/${branch.id}`}
-                          >
-                            View Details
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div> */}
     </div>
   );
 };

@@ -52,6 +52,8 @@ func main() {
 	protected.GET("/coverage/scanned-repos", handlers.GetUserScannedRepositories)
 	protected.GET("/repositories/branches", handlers.GetRepositoryBranches)
 	protected.GET("/coverage/branches/history", handlers.GetBranchesWithHistory)
+	protected.GET("/coverage/jobs/:job_id/error-analysis", handlers.GetJobErrorAnalysis)
+	protected.PATCH("/profile/welcome-ack", handlers.MarkUserWelcomed)
 
 	handlers.CleanupOldJobs()
 

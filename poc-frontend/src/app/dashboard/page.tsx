@@ -40,9 +40,11 @@ import {
   Calendar,
   Info,
   Clipboard,
+  GitBranchPlus,
   LineChart as LineChartIcon,
   ChevronDown,
   Loader2,
+  ArrowRight,
 } from "lucide-react";
 import PageSkeleton from "@/components/PageSkeleton";
 import withAuth from "@/components/withAuth";
@@ -53,6 +55,7 @@ import {
   getCoverageMetrics,
   getDashboardMetrics,
   getUserScannedRepositories,
+  acknowledgeWelcome,
 } from "@/services/api";
 import ActivityGraph from "@/components/ActivityGraph";
 import SpotlightCard from "@/components/SpotLightCard";
@@ -62,9 +65,19 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import CTAButton from "@/components/ui/CTAButton";
 import AnimatedList from "@/components/AnimatedList";
 import { useRouter } from "next/navigation";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import ScanButton from "@/components/ui/UniversalButton";
 
 const ProfessionalDashboard = () => {
   const [user, setUser] = useState<any>(null);
@@ -99,6 +112,8 @@ const ProfessionalDashboard = () => {
   const [scannedReposLoading, setScannedReposLoading] = useState(false);
   const [scannedRepos, setScannedRepos] = useState<any[]>([]);
   const [scannedReposError, setScannedReposError] = useState<string | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeHandled, setWelcomeHandled] = useState(false);
   const router = useRouter();
 
   // Generate year options: last 5 years plus "last year" option
@@ -130,6 +145,9 @@ const ProfessionalDashboard = () => {
         ]);
 
         setUser(userResponse.data.user || {});
+        if (!userResponse.data.user?.is_welcomed && !welcomeHandled) {
+          setShowWelcome(true);
+        }
         if (userResponse.data.user?.username) {
           sessionStorage.setItem(
             "github_username",
@@ -158,7 +176,7 @@ const ProfessionalDashboard = () => {
     };
 
     fetchData();
-  }, []);
+  }, [welcomeHandled]);
 
   const fetchGithubContributions = async (
     username: string | undefined,
@@ -367,8 +385,18 @@ const ProfessionalDashboard = () => {
         (item: any) => item.repo?.split('/').pop() === data.activeLabel
       );
       if (repoObj && repoObj.repo) {
-        router.push(`/repositories?repo=${encodeURIComponent(repoObj.repo)}`);
+        router.push(`/history/report?repo=${encodeURIComponent(repoObj.repo)}`);
       }
+    }
+  };
+
+  const handleWelcomeAcknowledge = async () => {
+    try {
+      await acknowledgeWelcome();
+      setShowWelcome(false);
+      setWelcomeHandled(true);
+    } catch (error) {
+      console.error('Failed to acknowledge welcome message:', error);
     }
   };
 
@@ -377,6 +405,59 @@ const ProfessionalDashboard = () => {
       title="Dashboard"
       subtitle="Overview of your GitHub API metrics"
     >
+      <Dialog open={showWelcome} onOpenChange={setShowWelcome}>
+        <DialogContent className="sm:max-w-[600px] bg-gradient-to-br from-orange-50 to-white border-orange-200">
+          <DialogHeader>
+            <div className="relative flex flex-col items-center justify-center p-8">
+              <div className="absolute inset-0 pointer-events-none">
+                {/* <SparklesCore
+                  background="transparent"
+                  minSize={0.4}
+                  maxSize={1}
+                  particleDensity={100}
+                  className="w-full h-full"
+                  particleColor="#f97316"
+                /> */}
+              </div>
+              
+              <img 
+                src="https://i.postimg.cc/tJ2CBv5s/Chat-GPT-Image-Aug-26-2025-11-12-37-AM-removebg-preview.png" 
+                alt="Welcome illustration" 
+                className="w-48 h-auto mb-6 drop-shadow-xl"
+              />
+              
+              <DialogTitle className="text-2xl font-bold text-orange-600 mb-4 text-center">
+                Welcome to Your Coverage Dashboard!
+              </DialogTitle>
+              
+              <div className="space-y-4 text-center">
+                <p className="text-orange-700">
+                  Your journey to better code coverage starts here. Let's explore what your repositories have to offer!
+                </p>
+                <div className="grid grid-cols-2 gap-4 mt-6">
+                  <div className="p-4 bg-white/50 rounded-lg border border-orange-200">
+                    <div className="text-orange-500 font-semibold">Track Coverage</div>
+                    <div className="text-sm text-orange-600">Monitor your code coverage trends across repositories</div>
+                  </div>
+                  <div className="p-4 bg-white/50 rounded-lg border border-orange-200">
+                    <div className="text-orange-500 font-semibold">Compare Branches</div>
+                    <div className="text-sm text-orange-600">Analyze coverage differences between branches</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <CTAButton
+              text="Let's Get Started"
+              variant="primary"
+              icon={<ArrowRight className="h-5 w-5" />}
+              onClick={handleWelcomeAcknowledge}
+            />
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="w-full">
         {error && (
           <div className="bg-red-100 border border-red-400 p-4 rounded-md flex items-start space-x-3 mb-6">
@@ -390,11 +471,6 @@ const ProfessionalDashboard = () => {
         {loading ? (
           <div className="w-full">
             {/* Welcome message skeleton */}
-            <div className="bg-gradient-to-r from-orange-100 to-orange-50 rounded-lg p-6 mb-8 border border-orange-400">
-              <div className="h-6 w-1/3 bg-orange-200 rounded mb-2 animate-pulse"></div>
-              <div className="h-4 w-1/2 bg-orange-100 rounded animate-pulse"></div>
-            </div>
-            {/* Metrics cards skeleton */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {[...Array(4)].map((_, idx) => (
                 <div
@@ -410,7 +486,6 @@ const ProfessionalDashboard = () => {
                 </div>
               ))}
             </div>
-            {/* Activity Graph skeleton */}
             <div className="mb-8">
               <div className="bg-gradient-to-br from-orange-50 via-orange-100 to-white rounded-lg shadow p-6 border border-orange-100 w-full animate-pulse">
                 <div className="flex justify-between items-center mb-4">
@@ -420,7 +495,6 @@ const ProfessionalDashboard = () => {
                 <div className="h-64 w-full bg-orange-50 rounded"></div>
               </div>
             </div>
-            {/* Charts skeleton */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               {[...Array(6)].map((_, idx) => (
                 <div key={idx} className="bg-white rounded-lg border border-orange-100 p-4 animate-pulse">
@@ -432,17 +506,53 @@ const ProfessionalDashboard = () => {
           </div>
         ) : (
           <>
-            {/* Welcome Section */}
-            <div className="bg-gradient-to-r from-orange-100 to-orange-50 rounded-lg p-6 mb-8 border border-orange-400">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                Welcome, {user?.name || "Developer"}!
-              </h2>
-              <p className="text-gray-700">
-                Your personalized dashboard for repository insights and code
-                coverage trends.
-              </p>
-              
-            </div>
+            {(metrics.repositories === 0 &&
+              metrics.totalScans === 0 &&
+              metrics.passRate === 0 &&
+              metrics.recentScans === 0) ? (
+              <div className="flex flex-col items-center justify-center p-12 bg-gradient-to-br from-orange-50/80 to-white rounded-2xl border border-orange-200 shadow-lg hover:shadow-xl transition-all duration-300 h-[80vh]">
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-full bg-orange-100/50 blur-2xl"></div>
+                  <img
+                    src="https://i.postimg.cc/FFxwcvdh/4828dc21-99b3-4507-9886-25ff7343372d.png"
+                    alt="No metrics illustration"
+                    className="relative w-[360px] h-auto mb-8 drop-shadow-xl"
+                  />
+                </div>
+                <div className="text-center space-y-2 relative">
+                  <h3 className="text-2xl font-semibold text-orange-700">
+                    Welcome to Your Dashboard!
+                  </h3>
+                  <p className="text-lg text-orange-600/90 max-w-md">
+                    No metrics available yet.
+                    Start your journey by running an ad-hoc coverage scan!
+                  </p>
+                  <div className="mt-8">
+                    <button
+                      onClick={() => router.push("/adhoc-coverage")}
+                      className="group relative inline-flex items-center justify-center px-8 py-3 font-semibold text-white transition-all duration-300 ease-in-out bg-gradient-to-r from-orange-500 to-red-500 rounded-full hover:from-red-500 hover:to-orange-500 hover:shadow-[0_0_40px_8px_rgba(251,146,60,0.25)] focus:outline-none focus:ring-2 focus:ring-orange-400 focus:ring-offset-2"
+                    >
+                      <span className="mr-2">Run Your First Scan</span>
+                      <svg
+                        className="w-5 h-5 transition-transform duration-300 ease-out transform group-hover:translate-x-1"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M13 7l5 5m0 0l-5 5m5-5H6"
+                        ></path>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+            <>
 
             {/* Metrics Cards with SpotlightCard */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -454,12 +564,12 @@ const ProfessionalDashboard = () => {
                   <h2 className="text-lg font-semibold text-orange-700">
                     Repositories
                   </h2>
-                  <Info className="h-6 w-6 text-orange-500" />
+                  <GitBranchPlus className="h-6 w-6 text-orange-500" />
                 </div>
                 <p className="text-3xl font-bold text-orange-500">
                   {metrics.repositories}
                 </p>
-                <p className="text-sm text-orange-400 mt-2">Scanned repos</p>
+                <p className="text-sm text-orange-400 mt-2">Active repositories being tracked</p>
                 <BorderBeam
                   duration={4}
                   size={300}
@@ -468,42 +578,20 @@ const ProfessionalDashboard = () => {
                 />
               </SpotlightCard>
 
-                <SpotlightCard
+              <SpotlightCard
                 className="custom-spotlight-card bg-orange-50 border border-orange-200"
                 spotlightColor="rgba(251, 146, 60, 0.44)"
-                >
+              >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-semibold text-orange-700">
-                  Total Scans
+                    Total Scans
                   </h2>
                   <Clipboard className="h-6 w-6 text-orange-500" />
                 </div>
                 <p className="text-3xl font-bold text-orange-500">
                   {metrics.totalScans}
                 </p>
-                <p className="text-sm text-orange-400 mt-2">All-time coverage scan count</p>
-                <BorderBeam
-                  duration={4}
-                  size={300}
-                  reverse
-                  className="from-transparent via-orange-400 to-transparent"
-                />
-                </SpotlightCard>
-
-              <SpotlightCard
-                className="custom-spotlight-card bg-orange-50 border border-orange-200"
-                spotlightColor="rgba(251, 146, 60, 0.44)"
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-semibold text-orange-700">
-                    Pass Rate
-                  </h2>
-                  <BarChart3 className="h-6 w-6 text-orange-500" />
-                </div>
-                <p className="text-3xl font-bold text-orange-500">
-                  {metrics.passRate.toFixed(1)}%
-                </p>
-                <p className="text-sm text-orange-400 mt-2">Average coverage</p>
+                <p className="text-sm text-orange-400 mt-2">Coverage checks completed</p>
                 <BorderBeam
                   duration={4}
                   size={300}
@@ -518,7 +606,29 @@ const ProfessionalDashboard = () => {
               >
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-lg font-semibold text-orange-700">
-                    Recent Scans
+                    Success Rate
+                  </h2>
+                  <BarChart3 className="h-6 w-6 text-orange-500" />
+                </div>
+                <p className="text-3xl font-bold text-orange-500">
+                  {metrics.passRate.toFixed(1)}%
+                </p>
+                <p className="text-sm text-orange-400 mt-2">Code coverage achievement</p>
+                <BorderBeam
+                  duration={4}
+                  size={300}
+                  reverse
+                  className="from-transparent via-orange-400 to-transparent"
+                />
+              </SpotlightCard>
+
+              <SpotlightCard
+                className="custom-spotlight-card bg-orange-50 border border-orange-200"
+                spotlightColor="rgba(251, 146, 60, 0.44)"
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-semibold text-orange-700">
+                    Weekly Activity
                   </h2>
                   <LineChartIcon className="h-6 w-6 text-orange-500" />
                 </div>
@@ -530,7 +640,7 @@ const ProfessionalDashboard = () => {
                   <p className="text-3xl font-bold text-orange-500">
                     {metrics.recentScans}
                   </p>
-                  <p className="text-sm text-orange-400 mt-2">Last 7 days</p>
+                  <p className="text-sm text-orange-400 mt-2">Coverage checks this week</p>
                 </button>
                 <BorderBeam
                   duration={4}
@@ -560,6 +670,20 @@ const ProfessionalDashboard = () => {
                     <CardTitle className="flex items-center gap-2 text-orange-700">
                       <BarChart3 className="h-5 w-5" />
                       Coverage by Repository
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="h-4 w-4 text-orange-400 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-xs">
+                              Each bar represents a repository's code coverage percentage.
+                              Different colors indicate coverage across different branches.
+                              Click on a bar to view detailed repository metrics.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </CardTitle>
                     <CardDescription>
                       Code coverage percentage across repositories and branches
@@ -633,6 +757,20 @@ const ProfessionalDashboard = () => {
                     <CardTitle className="flex items-center gap-2 text-orange-700">
                       <Activity className="h-5 w-5" />
                       Recent Scan Coverage
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="h-4 w-4 text-orange-400 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-xs">
+                              Shows coverage trends from your most recent scans.
+                              Each point represents a scan, with coverage percentage on the Y-axis.
+                              Hover over points to see detailed scan information.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </CardTitle>
                     <CardDescription>
                       Coverage trends from recent scans
@@ -677,115 +815,26 @@ const ProfessionalDashboard = () => {
                     </ChartContainer>
                   </CardContent>
                 </Card>
-
-                {/* Language Breakdown Pie Chart */}
-                {/* <Card className="border-orange-100 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-orange-700">
-                      <Code2 className="h-5 w-5" />
-                      Language Breakdown
-                    </CardTitle>
-                    <CardDescription>
-                      Distribution of programming languages
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ChartContainer config={{}}>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={languageData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percent }) => 
-                              percent > 5 ? `${name} ${(percent * 100).toFixed(0)}%` : ''
-                            }
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {languageData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.fill} />
-                            ))}
-                          </Pie>
-                          <ChartTooltip
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                const data = payload[0].payload;
-                                return (
-                                  <div className="bg-white p-3 border border-orange-200 rounded-lg shadow-lg">
-                                    <p className="font-medium text-orange-700">{data.name}</p>
-                                    <p className="text-sm text-orange-600">{data.value} lines</p>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </ChartContainer>
-                  </CardContent>
-                </Card> */}
-
-                {/* Test Results Pie Chart */}
-                {/* <Card className="border-orange-100 shadow-sm hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-orange-700">
-                      <TestTube className="h-5 w-5" />
-                      Test Results
-                    </CardTitle>
-                    <CardDescription>
-                      Distribution of test outcomes
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ChartContainer config={{}}>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={testResultsData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, value, percent }) => 
-                              `${name}: ${value} (${(percent * 100).toFixed(1)}%)`
-                            }
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {testResultsData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.fill} />
-                            ))}
-                          </Pie>
-                          <ChartTooltip
-                            content={({ active, payload }) => {
-                              if (active && payload && payload.length) {
-                                const data = payload[0].payload;
-                                return (
-                                  <div className="bg-white p-3 border border-orange-200 rounded-lg shadow-lg">
-                                    <p className="font-medium text-orange-700">{data.name}</p>
-                                    <p className="text-sm text-orange-600">{data.value} tests</p>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </ChartContainer>
-                  </CardContent>
-                </Card> */}
-
                 {/* Coverage Trend Area Chart - Full Width */}
                 <Card className="border-orange-100 shadow-sm hover:shadow-md transition-shadow lg:col-span-1">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-orange-700">
                       <TrendingUp className="h-5 w-5" />
                       Coverage Trend Overview
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="h-4 w-4 text-orange-400 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-xs">
+                              Area chart showing coverage distribution across repositories.
+                              The filled area indicates coverage percentage.
+                              Higher peaks represent better coverage in those repositories.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </CardTitle>
                     <CardDescription>
                       Code coverage distribution across all repositories
@@ -821,31 +870,44 @@ const ProfessionalDashboard = () => {
                     </ChartContainer>
                   </CardContent>
                 </Card>
-
-                {/* Additional Metrics Row */}
+                
                 <Card className="border-orange-100 shadow-sm hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-orange-700">
-                      <GitBranch className="h-5 w-5" />
-                      Repository Health
+                      <Activity className="h-5 w-5" />
+                      Coverage Scan Summary
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Info className="h-4 w-4 text-orange-400 cursor-help" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="max-w-xs">
+                              Overview of your code coverage metrics.
+                              Shows total scans run, repositories covered,
+                              and overall coverage achievement with a progress bar.
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </CardTitle>
                     <CardDescription>
-                      Overall health metrics for your repositories
+                      Overview of your coverage scan activity and results
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-orange-700">Active Repositories</span>
+                        <span className="text-sm font-medium text-orange-700">Total Scans Run</span>
+                        <span className="text-lg font-bold text-orange-500">{metrics.totalScans.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-orange-700">Repositories Scanned</span>
                         <span className="text-lg font-bold text-orange-500">{metrics.repositories}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-orange-700">Average Pass Rate</span>
+                        <span className="text-sm font-medium text-orange-700">Average Coverage Achieved</span>
                         <span className="text-lg font-bold text-orange-500">{metrics.passRate.toFixed(1)}%</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-orange-700">Total Test Runs</span>
-                        <span className="text-lg font-bold text-orange-500">{metrics.totalScans.toLocaleString()}</span>
                       </div>
                       <div className="w-full bg-orange-200 rounded-full h-2">
                         <div 
@@ -853,25 +915,22 @@ const ProfessionalDashboard = () => {
                           style={{ width: `${metrics.passRate}%` }}
                         ></div>
                       </div>
-                      <p className="text-xs text-orange-400 text-center mb-4">
-                        Overall repository health score
+                      <p className="text-xs text-orange-400 text-center">
+                        Summary of all coverage scans you've executed
                       </p>
                     </div>
-                    <div className="flex flex-row gap-3">
-                      <button className="flex-1 flex items-center justify-center px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-md text-sm transition-all duration-300 hover:from-red-500 hover:to-orange-500 hover:shadow-lg">
-                        <Clipboard className="mr-2 h-4 w-4" />
-                        Run New Scan
-                      </button>
-                      <button className="flex-1 flex items-center justify-center px-4 py-2 bg-gradient-to-r from-orange-400 to-orange-500 text-white rounded-md text-sm transition-all duration-300 hover:from-orange-500 hover:to-orange-600 hover:shadow-lg">
-                        <BarChart3 className="mr-2 h-4 w-4" />
-                        View Reports
-                      </button>
-                      <button className="flex-1 flex items-center justify-center px-4 py-2 bg-gradient-to-r from-orange-300 to-orange-400 text-white rounded-md text-sm transition-all duration-300 hover:from-orange-400 hover:to-orange-500 hover:shadow-lg">
-                        <Code2 className="mr-2 h-4 w-4" />
-                        Manage Repos
-                      </button>
+                    <div className="flex flex-row gap-2 mt-16 justify-center border-t  pt-4 border-orange-200">
+                      <ScanButton
+                        onClick={() => router.push("/adhoc-coverage")}
+                        text="Run New Scan"
+                        icon={<Clipboard className="svgIcon" />}
+                      />
+                      <ScanButton
+                        onClick={() => router.push("/repositories")}
+                        text="Manage Repos"
+                        icon={<Code2 className="svgIcon" />}
+                      />
                     </div>
-
                   </CardContent>
                 </Card>
                 
@@ -940,11 +999,11 @@ const ProfessionalDashboard = () => {
                 )}
               </div>
             </div>
+            </>
+            )}
           </>
         )}
       </div>
-
-      {/* Modal for recent scanned repositories using shadcn dialog */}
       <Dialog open={scannedReposModalOpen} onOpenChange={setScannedReposModalOpen}>
         <DialogContent className="max-w-lg w-full border-orange-200 h-[500px] max-h-[500px] flex flex-col">
           <DialogHeader>

@@ -45,7 +45,6 @@ type GitHubRepository struct {
 	Language      string `json:"language"`
 }
 
-// Response Structures for Branches
 type BranchInfo struct {
 	Name      string `json:"name"`
 	CommitSHA string `json:"commit_sha"`
@@ -179,23 +178,28 @@ func getRepositoriesFromDB(userID primitive.ObjectID, skip, limit int, search st
 			{"description": bson.M{"$regex": search, "$options": "i"}},
 		}
 	}
+
 	totalCount, err := collection.CountDocuments(context.Background(), filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error counting repositories: %w", err)
 	}
+
 	findOptions := options.Find().
 		SetSkip(int64(skip)).
 		SetLimit(int64(limit)).
 		SetSort(bson.D{{Key: "name", Value: 1}})
+
 	cursor, err := collection.Find(context.Background(), filter, findOptions)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error finding repositories: %w", err)
 	}
 	defer cursor.Close(context.Background())
+
 	var repositories []models.Repository
 	if err = cursor.All(context.Background(), &repositories); err != nil {
 		return nil, 0, fmt.Errorf("error decoding repositories: %w", err)
 	}
+
 	reposWithLang := make([]RepoWithLang, len(repositories))
 	for i, repo := range repositories {
 		reposWithLang[i] = RepoWithLang{
@@ -203,6 +207,7 @@ func getRepositoriesFromDB(userID primitive.ObjectID, skip, limit int, search st
 			Languages:  repo.Languages,
 		}
 	}
+
 	return reposWithLang, int(totalCount), nil
 }
 
@@ -474,6 +479,9 @@ func saveRepositoryToDB(userID primitive.ObjectID, repo models.Repository, langu
 	} else {
 		update["$setOnInsert"] = bson.M{"created_at": repo.CreatedAt}
 	}
+	update["$setOnInsert"].(bson.M)["overall_coverage"] = 0.0
+	update["$setOnInsert"].(bson.M)["coverage_status"] = false
+
 	opts := options.Update().SetUpsert(true)
 	result, err := collection.UpdateOne(ctx, filter, update, opts)
 	if err != nil {

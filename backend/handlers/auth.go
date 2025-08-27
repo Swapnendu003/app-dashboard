@@ -65,6 +65,7 @@ func GitHubSignUp(c *gin.Context) {
 		RefreshToken: tokenResponse.RefreshToken,
 		CreatedAt:    now,
 		UpdatedAt:    now,
+		IsWelcomed:   false,
 	}
 
 	_, err = collection.InsertOne(context.Background(), newUser)

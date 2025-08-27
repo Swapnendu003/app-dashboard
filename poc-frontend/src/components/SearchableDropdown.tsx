@@ -68,7 +68,7 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
       if (searchText.trim()) {
         onSearch(searchText);
       }
-    }, 300); // 300ms debounce
+    }, 300); 
     
     return () => {
       if (debounceTimerRef.current) {
@@ -77,7 +77,6 @@ const SearchableDropdown: React.FC<SearchableDropdownProps> = ({
     };
   }, [searchText, onSearch]);
 
-  // Get selected option label
   const selectedOption = options.find(option => option.value === value);
   const displayText = selectedOption ? selectedOption.label : placeholder;
 

@@ -13,18 +13,17 @@ const CoverageHistoryChart: React.FC<CoverageHistoryChartProps> = ({
   data,
   height = 300
 }) => {
-  // Color palette for different branches
   const branchColors = [
-    '#FF7D2D', // Orange
-    '#3B82F6', // Blue
-    '#10B981', // Green
-    '#F59E0B', // Amber
-    '#EF4444', // Red
-    '#8B5CF6', // Purple
-    '#06B6D4', // Cyan
-    '#F97316', // Orange variant
-    '#84CC16', // Lime
-    '#EC4899', // Pink
+    '#FF7D2D',
+    '#3B82F6',
+    '#10B981', 
+    '#F59E0B',
+    '#EF4444',
+    '#8B5CF6',
+    '#06B6D4',
+    '#F97316',
+    '#84CC16',
+    '#EC4899'
   ];
 
   const processedData = useMemo(() => {
@@ -79,22 +78,7 @@ const CoverageHistoryChart: React.FC<CoverageHistoryChartProps> = ({
 
   return (
     <div className="bg-white rounded-lg border border-orange-100 p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-medium text-orange-700">Coverage History</h3>
-        
-        {/* Legend */}
-        <div className="flex flex-wrap gap-3">
-          {processedData.branches.map((branch, index) => (
-            <div key={branch} className="flex items-center gap-1">
-              <div 
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: branchColors[index % branchColors.length] }}
-              />
-              <span className="text-sm text-gray-600 font-medium">{branch}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <h3 className="text-lg font-medium text-orange-700 mb-4">Coverage Trend</h3>
       
       <ResponsiveContainer width="100%" height={height}>
         <LineChart
@@ -114,8 +98,7 @@ const CoverageHistoryChart: React.FC<CoverageHistoryChartProps> = ({
             tickFormatter={(value) => `${value}%`}
           />
           <Tooltip content={customTooltip} />
-          
-          {/* Render a line for each branch */}
+        
           {processedData.branches.map((branch, index) => (
             <Line
               key={branch}
@@ -141,6 +124,18 @@ const CoverageHistoryChart: React.FC<CoverageHistoryChartProps> = ({
           ))}
         </LineChart>
       </ResponsiveContainer>
+
+      <div className="mt-6 flex flex-wrap gap-4 justify-center">
+        {processedData.branches.map((branch, index) => (
+          <div key={branch} className="flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50">
+            <div 
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: branchColors[index % branchColors.length] }}
+            />
+            <span className="text-sm text-orange-700 font-medium">{branch}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

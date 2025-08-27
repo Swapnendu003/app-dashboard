@@ -1,20 +1,32 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getActiveJobs, cancelJob, getCoverageById } from '@/services/api';
+import { useRouter } from 'next/navigation';
+import { getActiveJobs, cancelJob, getCoverageById, getJobErrorAnalysis } from '@/services/api';
 import { JobStatus } from '@/types/job';
-import { AlertCircle, RefreshCw, XCircle, Clock, CheckCircle2, Loader2, BarChart2 } from 'lucide-react';
+import { AlertCircle, RefreshCw, XCircle, Clock, CheckCircle2, Loader2, BarChart2, HelpCircle, Proportions } from 'lucide-react';
 
 interface ActiveJobsListProps {
   onRefresh?: () => void;
   onViewResults?: (resultId: string) => void;
+  onViewDetails?: (history: any) => void;
 }
 
-const ActiveJobsList: React.FC<ActiveJobsListProps> = ({ onRefresh, onViewResults }) => {
+interface ErrorAnalysis {
+  error: string;
+  analysis: string;
+  recommendation: string;
+}
+
+const ActiveJobsList: React.FC<ActiveJobsListProps> = ({ onRefresh, onViewResults, onViewDetails }) => {
+  const router = useRouter();
   const [jobs, setJobs] = useState<JobStatus[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [cancellingJobs, setCancellingJobs] = useState<{[key: string]: boolean}>({});
+  const [errorAnalysis, setErrorAnalysis] = useState<ErrorAnalysis | null>(null);
+  const [analyzingError, setAnalyzingError] = useState<boolean>(false);
+  const [showErrorModal, setShowErrorModal] = useState<boolean>(false);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -59,8 +71,42 @@ const ActiveJobsList: React.FC<ActiveJobsListProps> = ({ onRefresh, onViewResult
   };
 
   const handleViewResults = async (job: JobStatus) => {
-    if (job.result_id && onViewResults) {
-      onViewResults(job.result_id);
+    if (job.result_id) {
+      try {
+        const response = await getCoverageById(job.result_id);
+        if (onViewDetails) {
+          onViewDetails({
+            total_coverage: response.data.total_coverage,
+            files: response.data.files
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching coverage details:', err);
+      }
+    }
+  };
+
+  const handleShowError = async (jobId: string, error: string) => {
+    setShowErrorModal(true);
+    try {
+      setAnalyzingError(true);
+      const analysis = await getJobErrorAnalysis(jobId);
+      setErrorAnalysis(analysis);
+    } catch (err) {
+      console.error('Failed to get error analysis:', err);
+      setErrorAnalysis({
+        error: error,
+        analysis: 'Failed to analyze error',
+        recommendation: 'Please try again later or contact support.'
+      });
+    } finally {
+      setAnalyzingError(false);
+    }
+  };
+
+  const handleViewReport = (job: JobStatus) => {
+    if (job.repository) {
+      router.push(`/history/report?repo=${encodeURIComponent(job.repository)}`);
     }
   };
 
@@ -204,13 +250,26 @@ const ActiveJobsList: React.FC<ActiveJobsListProps> = ({ onRefresh, onViewResult
                             )}
                           </button>
                         )}
-                        {job.result_id && (
+                        {job.status === 'completed' && (
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleViewReport(job)}
+                              className="text-orange-500 hover:text-orange-700 focus:outline-none text-xs flex items-center gap-1"
+                              title="View full report"
+                            >
+                              <Proportions className="w-4 h-4" />
+                              View Report
+                            </button>
+                          </div>
+                        )}
+                        {job.status === 'failed' && (
                           <button
-                            onClick={() => handleViewResults(job)}
-                            className="text-orange-400 hover:text-orange-600 focus:outline-none"
-                            title="View results"
+                            onClick={() => handleShowError(job.id, job.error || 'Unknown error')}
+                            className="text-red-500 hover:text-red-700 focus:outline-none text-xs flex items-center gap-1"
+                            title={job.error || 'Unknown error'}
                           >
-                            <BarChart2 className="w-4 h-4" />
+                            <AlertCircle className="w-4 h-4" />
+                            Show Error Analysis
                           </button>
                         )}
                       </div>
@@ -219,6 +278,44 @@ const ActiveJobsList: React.FC<ActiveJobsListProps> = ({ onRefresh, onViewResult
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Error Analysis Modal */}
+      {showErrorModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 border border-orange-200 relative">
+            <button 
+              onClick={() => setShowErrorModal(false)}
+              className="absolute top-4 right-4 text-orange-400 hover:text-orange-600"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-lg font-medium text-orange-700 flex items-center gap-2 mb-4">
+              <AlertCircle className="w-5 h-5 text-red-400" />
+              Error Analysis
+            </h3>
+
+            {analyzingError ? (
+              <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                <p className="text-orange-600">Analyzing error...</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                  <h4 className="text-sm font-medium text-red-600 mb-2">Error Message:</h4>
+                  <p className="text-sm text-red-500 font-mono">{errorAnalysis?.error}</p>
+                </div>
+
+                <div className="bg-orange-50 border border-orange-200 rounded-md p-4">
+                  <h4 className="text-sm font-medium text-orange-600 mb-2">Analysis:</h4>
+                  <p className="text-sm text-orange-700">{errorAnalysis?.analysis}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

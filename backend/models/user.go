@@ -18,6 +18,7 @@ type User struct {
 	RefreshToken string             `bson:"refresh_token" json:"refresh_token,omitempty"`
 	CreatedAt    time.Time          `bson:"created_at" json:"created_at"`
 	UpdatedAt    time.Time          `bson:"updated_at" json:"updated_at"`
+	IsWelcomed   bool               `bson:"is_welcomed" json:"is_welcomed"`
 }
 
 type GitHubAuthRequest struct {

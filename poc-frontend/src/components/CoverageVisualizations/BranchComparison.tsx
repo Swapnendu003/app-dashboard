@@ -5,6 +5,7 @@ import FileHeatmap from './FileHeatmap';
 import { ArrowUp, ArrowDown, Minus, AlertCircle } from 'lucide-react';
 import BranchCompareCharts from './BranchCompareCharts';
 import FileCoverageAnalytics from './FileCoverageAnalytics';
+import ScanButton from '@/components/ui/UniversalButton';
 
 interface BranchComparisonProps {
   repository: string;
@@ -48,7 +49,7 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
       } catch (err) {
         console.error('Error fetching branches:', err);
         setError('Failed to fetch repository branches');
-        // Fallback to default branches
+
         setAvailableBranches([{ name: defaultBranch1 }, { name: defaultBranch2 }]);
       }
     };
@@ -166,13 +167,12 @@ export const BranchComparison: React.FC<BranchComparisonProps> = ({
           </select>
         </div>
         <div className="flex items-end">
-          <button
+          <ScanButton
             onClick={handleCompare}
             disabled={isLoading}
-            className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded hover:from-red-500 hover:to-orange-500 transition-colors disabled:opacity-50"
-          >
-            {isLoading ? 'Comparing...' : 'Compare'}
-          </button>
+            loading={isLoading}
+            text="Compare"
+          />
         </div>
       </div>
       {error && (

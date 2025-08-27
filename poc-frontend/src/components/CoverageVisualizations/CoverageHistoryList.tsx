@@ -7,11 +7,13 @@ import { Search, GitBranch, Calendar, Code, Hash } from 'lucide-react';
 interface CoverageHistoryListProps {
   coverageHistory: CoverageHistory[];
   onSelectHistory: (history: CoverageHistory) => void;
+  onViewDetails?: (history: CoverageHistory) => void;
 }
 
 const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({ 
   coverageHistory, 
-  onSelectHistory 
+  onSelectHistory,
+  onViewDetails
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredHistory, setFilteredHistory] = useState<CoverageHistory[]>(coverageHistory);
@@ -55,7 +57,7 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
   return (
     <div className="bg-white rounded-lg border border-orange-100 p-4">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-orange-700">Coverage History</h2>
+        <h2 className="text-lg font-semibold text-orange-700">Coverage Change History</h2>
         <div className="w-1/3">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-orange-300" />
@@ -90,8 +92,11 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-orange-100">
-              {filteredHistory.map((history) => (
-                <tr key={`${history.id}-${history.branch}`} className="bg-white hover:bg-orange-50 transition-colors">
+              {filteredHistory.map((history, index) => (
+                <tr 
+                  key={`${history.id}-${history.branch}-${index}`} 
+                  className="bg-white hover:bg-orange-50 transition-colors"
+                >
                   <td className="py-2 px-4 text-center text-orange-900">
                     <div className="flex items-center justify-center">
                       <GitBranch size={14} className="mr-2 text-orange-300" />
@@ -125,7 +130,13 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
                   </td>
                   <td className="py-2 px-4 text-center">
                     <button
-                      onClick={() => onSelectHistory(history)}
+                      onClick={() => {
+                        if (onViewDetails) {
+                          onViewDetails(history);
+                        } else if (onSelectHistory) {
+                          onSelectHistory(history);
+                        }
+                      }}
                       className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
                     >
                       View Details

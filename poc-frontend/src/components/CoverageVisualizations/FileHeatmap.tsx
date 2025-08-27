@@ -8,7 +8,6 @@ declare global {
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Search, AlertCircle, Grid, List, BarChart3, TrendingUp, FileText, Zap, PieChart } from 'lucide-react';
-import { BorderBeam } from "@/components/magicui/border-beam";
 
 import SpotlightCard from '../SpotLightCard';
 import AnimatedList from '../AnimatedList';
@@ -103,7 +102,7 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
   const [filteredFiles, setFilteredFiles] = useState<FileCoverage[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileCoverage | null>(null);
   const [showErrorModal, setShowErrorModal] = useState<boolean>(false);
-  const [viewMode, setViewMode] = useState<'analytics' | 'heatmap' | 'list'>('analytics');
+  const [viewMode, setViewMode] = useState<'analytics' | 'list'>('analytics');
   const [sortBy, setSortBy] = useState<'coverage' | 'name' | 'directory'>('coverage');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -346,258 +345,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
     }]
   }), [stats.directoryStats]);
 
-  const scatterOption = useMemo(() => {
-    const scatterData = files.map((file, index) => [
-      index,
-      file.coverage,
-      file.file,
-      file.error ? 1 : 0
-    ]);
-
-    return {
-      title: {
-        text: 'File Coverage Distribution',
-        left: 'center',
-        textStyle: {
-          fontSize: 16,
-          fontWeight: 'bold',
-          color: '#374151'
-        }
-      },
-      tooltip: {
-        trigger: 'item',
-        formatter: function(params: any) {
-          const [index, coverage, fileName, hasError] = params.data;
-          return `${fileName}<br/>Coverage: ${coverage.toFixed(1)}%${hasError ? '<br/>⚠ Has Error' : ''}`;
-        }
-      },
-      xAxis: {
-        type: 'value',
-        name: 'File Index',
-        nameLocation: 'middle',
-        nameGap: 30
-      },
-      yAxis: {
-        type: 'value',
-        name: 'Coverage %',
-        nameLocation: 'middle',
-        nameGap: 40,
-        max: 100
-      },
-      series: [{
-        symbolSize: function(data: any) {
-          return data[3] ? 8 : 6; // Larger symbols for files with errors
-        },
-        data: scatterData,
-        type: 'scatter',
-        itemStyle: {
-          color: function(params: any) {
-            const coverage = params.data[1];
-            const hasError = params.data[3];
-            if (hasError) return '#ef4444';
-            return getHeatmapColor(coverage);
-          }
-        }
-      }]
-    };
-  }, [files]);
-
-  const lineChartOption = useMemo(() => {
-    // Create coverage trend data by grouping files
-    const sortedFiles = [...files].sort((a, b) => a.file.localeCompare(b.file));
-    const batchSize = Math.ceil(sortedFiles.length / 20);
-    const trendData = [];
-    
-    for (let i = 0; i < sortedFiles.length; i += batchSize) {
-      const batch = sortedFiles.slice(i, i + batchSize);
-      const avgCoverage = batch.reduce((sum, f) => sum + f.coverage, 0) / batch.length;
-      trendData.push({
-        name: `Batch ${Math.floor(i / batchSize) + 1}`,
-        value: avgCoverage
-      });
-    }
-
-    return {
-      title: {
-        text: 'Coverage Trend Across File Batches',
-        left: 'center',
-        textStyle: {
-          fontSize: 16,
-          fontWeight: 'bold',
-          color: '#374151'
-        }
-      },
-      tooltip: {
-        trigger: 'axis',
-        formatter: function(params: any) {
-          const data = params[0];
-          return `${data.name}<br/>Average Coverage: ${data.value.toFixed(1)}%`;
-        }
-      },
-      xAxis: {
-        type: 'category',
-        data: trendData.map(d => d.name),
-        axisLabel: {
-          rotate: 45
-        }
-      },
-      yAxis: {
-        type: 'value',
-        name: 'Coverage %',
-        max: 100
-      },
-      series: [{
-        data: trendData.map(d => d.value),
-        type: 'line',
-        smooth: true,
-        lineStyle: {
-          color: '#3b82f6',
-          width: 3
-        },
-        itemStyle: {
-          color: '#3b82f6'
-        },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0,
-            y: 0,
-            x2: 0,
-            y2: 1,
-            colorStops: [{
-              offset: 0, color: 'rgba(59, 130, 246, 0.3)'
-            }, {
-              offset: 1, color: 'rgba(59, 130, 246, 0.1)'
-            }]
-          }
-        }
-      }]
-    };
-  }, [files]);
-
-  const radarOption = useMemo(() => {
-    const topExtensions = stats.extensionStats.slice(0, 6);
-    
-    return {
-      title: {
-        text: 'File Type Coverage Radar',
-        left: 'center',
-        textStyle: {
-          fontSize: 16,
-          fontWeight: 'bold',
-          color: '#374151'
-        }
-      },
-      tooltip: {
-        trigger: 'item'
-      },
-      radar: {
-        indicator: topExtensions.map(ext => ({
-          name: `.${ext.extension}`,
-          max: 100
-        })),
-        center: ['50%', '55%'],
-        radius: '70%'
-      },
-      series: [{
-        name: 'Coverage by Extension',
-        type: 'radar',
-        data: [{
-          value: topExtensions.map(ext => ext.avgCoverage),
-          name: 'Average Coverage',
-          itemStyle: {
-            color: '#8b5cf6'
-          },
-          areaStyle: {
-            color: 'rgba(139, 92, 246, 0.3)'
-          }
-        }]
-      }]
-    };
-  }, [stats.extensionStats]);
-  const histogramOption = useMemo(() => {
-    // Create histogram bins for coverage ranges
-    const bins = [
-      { range: '0-10%', min: 0, max: 10, color: '#ef4444' },
-      { range: '10-20%', min: 10, max: 20, color: '#f97316' },
-      { range: '20-30%', min: 20, max: 30, color: '#f59e0b' },
-      { range: '30-40%', min: 30, max: 40, color: '#eab308' },
-      { range: '40-50%', min: 40, max: 50, color: '#ca8a04' },
-      { range: '50-60%', min: 50, max: 60, color: '#a3a3a3' },
-      { range: '60-70%', min: 60, max: 70, color: '#84cc16' },
-      { range: '70-80%', min: 70, max: 80, color: '#65a30d' },
-      { range: '80-90%', min: 80, max: 90, color: '#22c55e' },
-      { range: '90-100%', min: 90, max: 100, color: '#16a34a' }
-    ];
-
-    const histogramData = bins.map(bin => {
-      const count = files.filter(file => 
-        file.coverage >= bin.min && file.coverage < bin.max
-      ).length;
-      return {
-        name: bin.range,
-        value: count,
-        color: bin.color
-      };
-    });
-
-    return {
-      title: {
-        text: 'Coverage Distribution Histogram',
-        left: 'center',
-        textStyle: {
-          fontSize: 16,
-          fontWeight: 'bold',
-          color: '#374151'
-        }
-      },
-      tooltip: {
-        trigger: 'axis',
-        formatter: function(params: any) {
-          const data = params[0];
-          const percentage = ((data.value / files.length) * 100).toFixed(1);
-          return `${data.name}<br/>Files: ${data.value} (${percentage}%)`;
-        }
-      },
-      xAxis: {
-        type: 'category',
-        data: histogramData.map(d => d.name),
-        axisLabel: {
-          rotate: 45,
-          fontSize: 10
-        },
-        name: 'Coverage Range',
-        nameLocation: 'middle',
-        nameGap: 60
-      },
-      yAxis: {
-        type: 'value',
-        name: 'Number of Files',
-        nameLocation: 'middle',
-        nameGap: 50
-      },
-      series: [{
-        data: histogramData.map(d => ({
-          value: d.value,
-          itemStyle: { 
-            color: d.color,
-            borderRadius: [4, 4, 0, 0]
-          }
-        })),
-        type: 'bar',
-        barWidth: '60%',
-        emphasis: {
-          itemStyle: {
-            shadowBlur: 10,
-            shadowColor: 'rgba(0, 0, 0, 0.3)',
-            borderWidth: 2,
-            borderColor: '#ffffff'
-          }
-        }
-      }]
-    };
-  }, [files]);
-
   const showFileError = (file: FileCoverage) => {
     setSelectedFile(file);
     setShowErrorModal(true);
@@ -609,10 +356,10 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
       return (
         <div className="flex items-center justify-between w-full">
           <div className="flex-1 min-w-0">
-            <div className="font-mono text-sm text-orange-800 truncate" title={dir.directory}>
+            <div className="font-mono text-sm text-purple-800 truncate" title={dir.directory}>
               {dir.directory}
             </div>
-            <div className="text-xs text-orange-600">
+            <div className="text-xs text-purple-600">
               {dir.fileCount} files
             </div>
           </div>
@@ -653,7 +400,7 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
           </p>
         </div>
         
-        {/* View Mode Toggles */}
+        {/* View Mode Toggles - Now only Analytics and List */}
         <div className="flex items-center gap-1 bg-orange-50 p-1 rounded-lg">
           <button
             onClick={() => setViewMode('analytics')}
@@ -666,18 +413,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
           >
             <TrendingUp size={16} />
             <span className="text-sm font-medium">Analytics</span>
-          </button>
-          <button
-            onClick={() => setViewMode('heatmap')}
-            className={`px-3 py-2 rounded-md transition-all duration-200 flex items-center gap-2 ${
-              viewMode === 'heatmap' 
-                ? 'bg-orange-500 text-white shadow-md transform scale-105' 
-                : 'text-orange-600 hover:bg-orange-100 hover:scale-105'
-            }`}
-            title="Charts view"
-          >
-            <PieChart size={16} />
-            <span className="text-sm font-medium">Charts</span>
           </button>
           <button
             onClick={() => setViewMode('list')}
@@ -710,12 +445,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 </div>
                 <FileText className="w-8 h-8 text-blue-500" />
               </div>
-              <BorderBeam
-                duration={4}
-                size={300}
-                reverse
-                className="from-transparent via-blue-400 to-transparent"
-              />
             </SpotlightCard>
             <SpotlightCard
               className="custom-spotlight-card bg-gradient-to-br from-green-100 to-green-50 border border-green-200"
@@ -728,12 +457,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 </div>
                 <Zap className="w-8 h-8 text-green-500" />
               </div>
-              <BorderBeam
-                duration={4}
-                size={300}
-                reverse
-                className="from-transparent via-green-400 to-transparent"
-              />
             </SpotlightCard>
             <SpotlightCard
               className="custom-spotlight-card bg-gradient-to-br from-red-100 to-red-50 border border-red-200"
@@ -746,12 +469,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 </div>
                 <AlertCircle className="w-8 h-8 text-red-500" />
               </div>
-              <BorderBeam
-                duration={4}
-                size={300}
-                reverse
-                className="from-transparent via-red-400 to-transparent"
-              />
             </SpotlightCard>
             <SpotlightCard
               className="custom-spotlight-card bg-gradient-to-br from-orange-100 to-orange-50 border border-orange-200"
@@ -764,18 +481,26 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 </div>
                 <BarChart3 className="w-8 h-8 text-orange-500" />
               </div>
-              <BorderBeam
-                duration={4}
-                size={300}
-                reverse
-                className="from-transparent via-orange-400 to-transparent"
-              />
             </SpotlightCard>
           </div>
           
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Coverage Distribution Chart */}
+            <SpotlightCard className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 hover:shadow-lg transition-all duration-300"
+              spotlightColor='rgba(251, 146, 60, 0.44)'
+            >
+              <EChartsComponent option={pieChartOption} height={350} />
+            </SpotlightCard>
+            <SpotlightCard className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 hover:shadow-lg transition-all duration-300"
+              spotlightColor='rgba(251, 146, 60, 0.44)'
+            >
+              <EChartsComponent option={barChartOption} height={350} />
+            </SpotlightCard>
+          </div>
+
+          {/* Coverage Distribution and Top Directories Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Coverage Distribution Card */}
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300">
               <h4 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
                 <BarChart3 className="w-5 h-5" />
@@ -806,8 +531,8 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 hover:shadow-lg transition-all duration-300">
-              <h4 className="text-lg font-semibold text-orange-700 mb-4 flex items-center gap-2">
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-purple-200 hover:shadow-lg transition-all duration-300">
+              <h4 className="text-lg font-semibold text-purple-700 mb-4 flex items-center gap-2">
                 <Grid className="w-5 h-5" />
                 Top Directories
               </h4>
@@ -816,12 +541,12 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
                 showGradients={true}
                 enableArrowNavigation={true}
                 displayScrollbar={true}
-                itemClassName="bg-white hover:bg-orange-50 border border-orange-100 text-orange-900"
+                itemClassName="bg-white hover:bg-purple-50 border border-purple-100 text-purple-900"
                 onItemSelect={undefined}
               />
             </div>
           </div>
-
+          
           {/* File Extension Analysis */}
           <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 p-6 rounded-xl border border-indigo-200 hover:shadow-lg transition-all duration-300">
             <h4 className="text-lg font-semibold text-indigo-700 mb-4 flex items-center gap-2">
@@ -846,120 +571,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
               ))}
             </div>
           </div>
-        </div>
-      )}
-
-      {(viewMode === 'heatmap' || viewMode === 'list') && (
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-orange-300" />
-              <input
-                type="text"
-                placeholder="Search files..."
-                className="w-full pl-10 pr-3 py-3 bg-orange-50 text-orange-900 rounded-lg border border-orange-200 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 transition-all duration-200"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-          
-          <select
-            className="px-4 py-3 bg-orange-50 text-orange-700 rounded-lg border border-orange-200 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 transition-all duration-200"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as 'coverage' | 'name' | 'directory')}
-          >
-            <option value="coverage">Sort by Coverage</option>
-            <option value="name">Sort by Name</option>
-            <option value="directory">Sort by Directory</option>
-          </select>
-
-          {viewMode === 'list' && (
-            <div className="flex gap-2">
-              <select
-                className="px-4 py-3 bg-orange-50 text-orange-700 rounded-lg border border-orange-200 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 transition-all duration-200"
-                value={fileTypeFilter}
-                onChange={e => setFileTypeFilter(e.target.value)}
-              >
-                <option value="all">All Types</option>
-                {allExtensions.map(ext => (
-                  <option key={ext} value={ext}>
-                    .{ext}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="px-4 py-3 bg-orange-50 text-orange-700 rounded-lg border border-orange-200 text-sm focus:ring-2 focus:ring-orange-300 focus:border-orange-400 transition-all duration-200"
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-              >
-                <option value="all">All Status</option>
-                <option value="Success">Success</option>
-                <option value="Failure">Failure</option>
-              </select>
-            </div>
-          )}
-        </div>
-      )}
-      {viewMode === 'heatmap' && (
-        <div className="space-y-8">
-       
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Coverage Distribution Chart */}
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300">
-              <h4 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5" />
-                Coverage Distribution
-              </h4>
-              <div className="space-y-3">
-                {stats.coverageRanges.map(({ range, color, count }) => {
-                  const percentage = (count / files.length) * 100;
-                  return (
-                    <div key={range} className="group hover:bg-white hover:p-2 hover:rounded-lg transition-all duration-200">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-700">{range}</span>
-                        <span className="text-sm text-gray-600">{count} files ({percentage.toFixed(1)}%)</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
-                        <div 
-                          className="h-3 rounded-full transition-all duration-500 hover:brightness-110"
-                          style={{ 
-                            backgroundColor: color,
-                            width: `${percentage}%`,
-                            boxShadow: `0 0 10px ${color}40`
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 hover:shadow-lg transition-all duration-300">
-              <h4 className="text-lg font-semibold text-orange-700 mb-4 flex items-center gap-2">
-                <Grid className="w-5 h-5" />
-                Top Directories
-              </h4>
-              <AnimatedList
-                items={topDirectoryItems}
-                showGradients={true}
-                enableArrowNavigation={true}
-                displayScrollbar={true}
-                itemClassName="bg-white hover:bg-orange-50 border border-orange-100 text-orange-900"
-                onItemSelect={undefined}
-              />
-            </div>
-          </div>
-
-          {/* Second Row - Scatter and Line Chart */}
-          <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-            <SpotlightCard className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200 hover:shadow-lg transition-all duration-300"
-            spotlightColor='rgba(126, 34, 206, 0.18)'>
-              <EChartsComponent option={scatterOption} height={350} />
-            </SpotlightCard>
-          </div>
-
         </div>
       )}
 

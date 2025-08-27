@@ -9,11 +9,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"encoding/json"
+
 	"github.com/gin-gonic/gin"
+	"github.com/sashabaranov/go-openai"
 	"github.com/yourusername/backend/config"
 	"github.com/yourusername/backend/goutils"
 	"github.com/yourusername/backend/javautils"
@@ -87,12 +91,27 @@ func markJobComplete(jobID string, status string, resultID string, err string) {
 	jobsMutex.Lock()
 	defer jobsMutex.Unlock()
 
+	// Get current time once for consistent timestamps
+	now := time.Now()
+
+	// Store more detailed error logs if this is an error case
+	detailedError := err
+	if status == "failed" && err != "" {
+		// Create a more detailed error log with timestamp
+		detailedError = fmt.Sprintf("[%s] %s", now.Format(time.RFC3339), err)
+
+		// Log the error to system logs as well
+		log.Printf("ERROR: Job %s failed: %s", jobID, err)
+
+		// Store error details in database
+		go storeJobErrorDetails(jobID, err, now)
+	}
+
 	if job, exists := activeJobs[jobID]; exists {
 		job.Status = status
-		now := time.Now()
 		job.EndTime = &now
 		job.ResultID = resultID
-		job.Error = err
+		job.Error = detailedError
 		job.Progress = 100
 
 		go func(id string) {
@@ -118,6 +137,55 @@ func markJobComplete(jobID string, status string, resultID string, err string) {
 		delete(completedJobs, id)
 		jobsMutex.Unlock()
 	}(jobID)
+}
+
+// New helper function to store detailed error information in the database
+func storeJobErrorDetails(jobID string, errorMsg string, timestamp time.Time) {
+	db, err := config.ConnectDB()
+	if err != nil {
+		log.Printf("ERROR: Failed to connect to database to store job error details: %v", err)
+		return
+	}
+
+	collection := db.Collection("job_error_logs")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Create a document with detailed error information
+	errorLog := bson.M{
+		"job_id":      jobID,
+		"error":       errorMsg,
+		"timestamp":   timestamp,
+		"stack_trace": getStackTrace(),
+		"severity":    "error",
+	}
+
+	// Insert the error log
+	_, err = collection.InsertOne(ctx, errorLog)
+	if err != nil {
+		log.Printf("ERROR: Failed to store job error details: %v", err)
+	}
+
+	// Also update the job document with error details
+	jobsCollection := db.Collection("coverage_jobs")
+	update := bson.M{
+		"$set": bson.M{
+			"error_details": errorLog,
+			"updated_at":    timestamp,
+		},
+	}
+
+	_, err = jobsCollection.UpdateOne(ctx, bson.M{"job_id": jobID}, update)
+	if err != nil {
+		log.Printf("ERROR: Failed to update job with error details: %v", err)
+	}
+}
+
+// Helper function to capture stack trace information
+func getStackTrace() string {
+	buf := make([]byte, 8192)
+	n := runtime.Stack(buf, false)
+	return string(buf[:n])
 }
 
 func RunCoverageScan(c *gin.Context) {
@@ -218,11 +286,18 @@ func RunCoverageScan(c *gin.Context) {
 				}
 			}()
 
+			// Modified: Always save history, even for failed jobs
 			resp, err := scanCoverage(coverageReq, true)
 			close(progressDone)
 
 			if err != nil {
 				log.Printf("ERROR: Async coverage scan failed: %v", err)
+				// Even though the job failed, resp might contain partial results
+				// or at least error information that should be stored
+
+				// Store coverage history with error information
+				storeFailedCoverageHistory(coverageReq, err.Error())
+
 				updateJobStatus(jobID, "failed", "", err.Error())
 				return
 			}
@@ -254,10 +329,87 @@ func RunCoverageScan(c *gin.Context) {
 	resp, err := scanCoverage(coverageReq, false)
 	if err != nil {
 		log.Printf("ERROR: Coverage scan failed: %v", err)
+		// Store coverage history with error information
+		storeFailedCoverageHistory(coverageReq, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// New function to store history for failed jobs
+func storeFailedCoverageHistory(req CoverageRequest, errorMsg string) {
+	log.Printf("INFO: Storing failed coverage history for repo: %s, branch: %s", req.RepoURL, req.Branch)
+
+	db, err := config.ConnectDB()
+	if err != nil {
+		log.Printf("ERROR: Failed to connect to database to store failed history: %v", err)
+		return
+	}
+
+	collection := db.Collection("coverage_history")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	now := time.Now()
+
+	// Create a scan record with error information
+	scanRecord := models.ScanRecord{
+		TotalCoverage: 0,
+		Files: []models.FileCoverage{
+			{
+				File:     "scan_error.log",
+				Coverage: 0,
+				Status:   "Failure",
+				Error:    errorMsg,
+			},
+		},
+		Timestamp:  now,
+		CommitHash: "",
+	}
+
+	filter := bson.M{
+		"repository": req.RepoURL,
+		"user_id":    req.UserID,
+	}
+
+	// First, get the current document to check branch existence and total scans
+	var existingDoc struct {
+		Branches map[string]struct {
+			TotalScans int `bson:"total_scans"`
+		} `bson:"branches"`
+	}
+	err = collection.FindOne(ctx, filter).Decode(&existingDoc)
+
+	var totalScans int = 1
+	if err == nil && existingDoc.Branches != nil {
+		if branchData, exists := existingDoc.Branches[req.Branch]; exists {
+			totalScans = branchData.TotalScans + 1
+		}
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			fmt.Sprintf("branches.%s.last_updated", req.Branch): now,
+			fmt.Sprintf("branches.%s.total_scans", req.Branch):  totalScans,
+			fmt.Sprintf("branches.%s.has_errors", req.Branch):   true,
+		},
+		"$push": bson.M{
+			fmt.Sprintf("branches.%s.history", req.Branch): scanRecord,
+		},
+		"$inc": bson.M{
+			"total_scans": 1,
+		},
+	}
+
+	opts := options.Update().SetUpsert(true)
+	_, err = collection.UpdateOne(ctx, filter, update, opts)
+	if err != nil {
+		log.Printf("WARNING: Failed to upsert failed coverage history: %v", err)
+	} else {
+		log.Printf("INFO: Successfully stored failed coverage history for branch %s (scan #%d)",
+			req.Branch, totalScans)
+	}
 }
 
 func updateJobStatus(jobID, status, resultID, errorMsg string) {
@@ -813,6 +965,8 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 			collection := db.Collection("coverage_history")
 			now := time.Now()
 			var files []models.FileCoverage
+			var hasErrors bool
+
 			for _, f := range resp.Files {
 				files = append(files, models.FileCoverage{
 					File:     f.File,
@@ -820,6 +974,10 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 					Status:   f.Status,
 					Error:    f.Error,
 				})
+
+				if f.Error != "" || f.Status == "Failure" || f.Coverage == 0 {
+					hasErrors = true
+				}
 			}
 
 			scanRecord := models.ScanRecord{
@@ -828,13 +986,15 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 				Timestamp:     now,
 				CommitHash:    commitHash,
 			}
+			branchName := req.Branch
+			if branchName == "" {
+				branchName = "main"
+			}
 
 			filter := bson.M{
 				"repository": req.RepoURL,
 				"user_id":    req.UserID,
 			}
-
-			// First, get the current document to check branch existence and total scans
 			var existingDoc struct {
 				Branches map[string]struct {
 					TotalScans int `bson:"total_scans"`
@@ -844,19 +1004,20 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 
 			var totalScans int = 1
 			if err == nil && existingDoc.Branches != nil {
-				if branchData, exists := existingDoc.Branches[req.Branch]; exists {
+				if branchData, exists := existingDoc.Branches[branchName]; exists {
 					totalScans = branchData.TotalScans + 1
 				}
 			}
 
 			update := bson.M{
 				"$set": bson.M{
-					fmt.Sprintf("branches.%s.latest_coverage", req.Branch): resp.TotalCoverage,
-					fmt.Sprintf("branches.%s.last_updated", req.Branch):    now,
-					fmt.Sprintf("branches.%s.total_scans", req.Branch):     totalScans,
+					fmt.Sprintf("branches.%s.latest_coverage", branchName): resp.TotalCoverage,
+					fmt.Sprintf("branches.%s.last_updated", branchName):    now,
+					fmt.Sprintf("branches.%s.total_scans", branchName):     totalScans,
+					fmt.Sprintf("branches.%s.has_errors", branchName):      hasErrors,
 				},
 				"$push": bson.M{
-					fmt.Sprintf("branches.%s.history", req.Branch): scanRecord,
+					fmt.Sprintf("branches.%s.history", branchName): scanRecord,
 				},
 				"$inc": bson.M{
 					"total_scans": 1,
@@ -869,22 +1030,22 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 				log.Printf("WARNING: %s Failed to upsert coverage history: %v", logPrefix, err)
 			} else {
 				log.Printf("INFO: %s Successfully appended coverage history for branch %s (scan #%d)",
-					logPrefix, req.Branch, totalScans)
+					logPrefix, branchName, totalScans)
 			}
 
 			repoCollection := db.Collection("repositories")
 			filter = bson.M{
 				"$or": []bson.M{
-					{"url": req.RepoURL},
 					{"html_url": req.RepoURL},
-					{"full_name": strings.TrimPrefix(strings.TrimPrefix(req.RepoURL, "https://github.com/"), "https://api.github.com/repos/")},
 				},
 			}
 
 			update = bson.M{
 				"$set": bson.M{
-					fmt.Sprintf("branch_coverage.%s", req.Branch): resp.TotalCoverage,
+					fmt.Sprintf("branch_coverage.%s", branchName): resp.TotalCoverage,
 					"last_coverage_at":                            now,
+					"overall_coverage":                            resp.TotalCoverage,
+					"coverage_status":                             true,
 				},
 			}
 
@@ -892,7 +1053,8 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 			if err != nil {
 				log.Printf("WARNING: %s Failed to update repository coverage: %v", logPrefix, err)
 			} else {
-				log.Printf("INFO: %s Successfully updated repository coverage for branch %s to %.2f%%", logPrefix, req.Branch, resp.TotalCoverage)
+				log.Printf("INFO: %s Successfully updated repository coverage for branch %s to %.2f%% and marked coverage status as true",
+					logPrefix, branchName, resp.TotalCoverage)
 			}
 		} else {
 			log.Printf("WARNING: %s Failed to save coverage history: %v", logPrefix, err)
@@ -1243,7 +1405,7 @@ func detectProjectType(dir string, logPrefix string) string {
 			if !isJSTestFile(info.Name()) {
 				jsFileCount++
 			}
-		case ".java": // ADDED JAVA CASE
+		case ".java":
 			if !strings.Contains(strings.ToLower(info.Name()), "test") {
 				javaFileCount++
 			}
@@ -1361,4 +1523,102 @@ func cleanupInMemoryCache() {
 	}
 
 	log.Printf("In-memory job cache size: %d", len(completedJobs))
+}
+
+func GetJobErrorAnalysis(c *gin.Context) {
+	jobID := c.Param("job_id")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Job ID is required"})
+		return
+	}
+
+	db, err := config.ConnectDB()
+	if err != nil {
+		log.Printf("ERROR: Failed to connect to database: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database connection failed"})
+		return
+	}
+
+	collection := db.Collection("coverage_jobs")
+	ctx := context.Background()
+
+	var errorLog struct {
+		Error      string    `bson:"error"`
+		Timestamp  time.Time `bson:"timestamp"`
+		StackTrace string    `bson:"stack_trace"`
+	}
+
+	err = collection.FindOne(ctx, bson.M{"job_id": jobID}).Decode(&errorLog)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Error log not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve error log"})
+		}
+		return
+	}
+
+	// Call GPT-4 for analysis
+	analysis, err := analyzeErrorWithGPT(errorLog.Error, errorLog.StackTrace)
+	if err != nil {
+		log.Printf("ERROR: Failed to analyze error with GPT: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to analyze error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, analysis)
+}
+
+func analyzeErrorWithGPT(errorMsg string, stackTrace string) (map[string]string, error) {
+	config := openai.DefaultConfig(os.Getenv("OPENAI_API_KEY"))
+	client := openai.NewClientWithConfig(config)
+
+	prompt := fmt.Sprintf(`Analyze the following error and stack trace from a code coverage scan:
+
+Error Message:
+%s
+
+Stack Trace:
+%s
+
+Please provide:
+1. A clear analysis of what went wrong
+2. A specific recommendation for how to fix it
+
+Format your response as JSON with 'analysis' and 'recommendation' fields.`, errorMsg, stackTrace)
+
+	// Call GPT-4
+	resp, err := client.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model: "gpt-4",
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    "system",
+					Content: "You are an expert software engineer specialized in debugging code coverage issues.",
+				},
+				{
+					Role:    "user",
+					Content: prompt,
+				},
+			},
+			Temperature: 0.7,
+		},
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("GPT API error: %v", err)
+	}
+
+	var analysis map[string]string
+	err = json.Unmarshal([]byte(resp.Choices[0].Message.Content), &analysis)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse GPT response: %v", err)
+	}
+
+	return map[string]string{
+		"error":          errorMsg,
+		"analysis":       analysis["analysis"],
+		"recommendation": analysis["recommendation"],
+	}, nil
 }
