@@ -258,83 +258,12 @@ Common issues:
 
 Add your PR links and descriptions here:
 
-1. [PR #123](link) - Initial project setup
-2. [PR #124](link) - Added Java coverage support
-3. ...
+1. [PR #1](https://github.com/keploy/app-dashboard/pull/1) - Feature: Implementation of GitHub dashboard with authentication, repo management, and test coverage insights
+2. [PR #2](https://github.com/keploy/app-dashboard/pull/2) - Feature: Revamp UI with transition from dark to light theme
+3. [PR #3](https://github.com/keploy/app-dashboard/pull/3) - Integration of interactive charts into dashboard for code coverage insights visualization
+4. [PR #4](https://github.com/keploy/app-dashboard/pull/4) - Aditon of comprehensive Java/JVM coverage analysis with multi-build tool support 
+5. [PR #5](https://github.com/keploy/app-dashboard/pull/5) - Adition of Ad-hoc Coverage Scanner with Real-time Job Tracking and History
+6. [PR #6](https://github.com/keploy/app-dashboard/pull/6) - Feature: Multi-branch coverage APIs with branch comparison and Docker deployment setup
+7. [PR #7](http://github.com/keploy/app-dashboard/pull/7) - Enhance overall user experience with UI/UX refinements
 
-## Troubleshooting
 
-### Common Issues
-
-1. MongoDB Connection:
-```
-Error: MongoDB connection failed
-Solution: Check MONGODB_URI and ensure MongoDB is running
-```
-
-2. Java Coverage:
-```
-Error: No JDK found
-Solution: Set JAVA_HOME environment variable
-```
-
-3. Python Virtual Environments:
-```
-Error: externally-managed-environment
-Solution: System creates isolated venv automatically
-```
-
-4. JavaScript Coverage:
-```
-Error: Cannot find module 'xyz'
-Solution: Run npm install or check node_modules
-```
-
-### Coverage Analysis Failures
-
-1. Repository Access:
-- Ensure Git credentials are configured
-- Check repository permissions
-- Verify branch names
-
-2. Build Failures:
-- Check build tool installation
-- Verify dependency versions
-- Review build logs
-
-3. Test Execution:
-- Check test framework configuration
-- Verify test dependencies
-- Review test timeout settings
-
-### Performance Optimization
-
-1. Parallel Processing:
-- Multi-module projects are processed concurrently
-- Language-specific optimizations
-- Caching mechanisms
-
-2. Resource Management:
-- Temporary file cleanup
-- Process timeout handling
-- Memory usage optimization
-
-### Security Considerations
-
-1. Repository Access:
-- Use SSH keys when possible
-- Implement token rotation
-- Secure credential storage
-
-2. API Security:
-- Rate limiting
-- Authentication
-- Input validation
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
-- Code style
-- PR process
-- Testing requirements
-- Documentation updates
