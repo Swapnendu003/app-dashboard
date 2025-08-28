@@ -1440,6 +1440,8 @@ func detectProjectType(dir string, logPrefix string) string {
 	return primaryLang
 }
 
+
+
 // Cleanup functions (unchanged)
 func CleanupOldJobs() {
 	log.Println("Starting job cleanup routine")
