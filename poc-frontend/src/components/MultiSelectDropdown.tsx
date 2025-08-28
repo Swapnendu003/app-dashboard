@@ -58,11 +58,11 @@ const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {label && <div className="block text-sm text-orange-700 mb-1">{label}</div>}
+      {label && <div className="block text-sm text-gray-700 mb-1">{label}</div>}
       
       <div 
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex justify-between items-center p-2 bg-orange-50 border ${error ? 'border-red-400' : 'border-orange-200'} text-orange-900 rounded-md cursor-pointer`}
+        className={`flex justify-between items-center p-2 bg-orange-50 border ${error ? 'border-red-400' : 'border-orange-200'} text-gray-900 rounded-md cursor-pointer`}
       >
         <div className="truncate">{displayText}</div>
         <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} />
@@ -73,10 +73,10 @@ const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
           {loading ? (
             <div className="py-4 flex justify-center items-center">
               <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-orange-500"></div>
-              <span className="ml-2 text-sm text-orange-400">Loading...</span>
+              <span className="ml-2 text-sm text-gray-400">Loading...</span>
             </div>
           ) : options.length === 0 ? (
-            <div className="p-2 text-center text-orange-300">No options available</div>
+            <div className="p-2 text-center text-gray-300">No options available</div>
           ) : (
             <ul>
               {options.map(option => (
@@ -95,12 +95,12 @@ const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <span 
-                      className="text-orange-900 truncate block"
+                      className="text-gray-900 truncate block"
                       title={option.label}
                     >
                       {option.label}
                       {option.meta?.isDefault && (
-                        <span className="ml-1 text-xs text-orange-400 whitespace-nowrap">(default)</span>
+                        <span className="ml-1 text-xs text-gray-400 whitespace-nowrap">(default)</span>
                       )}
                       {option.meta?.protected && (
                         <span className="ml-1 text-xs whitespace-nowrap">🔒</span>

@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  Suspense,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import {
   getUserScannedRepositories,
@@ -40,9 +46,13 @@ import { Repository } from "@/types/repository";
 import ScanButton from "@/components/ui/UniversalButton";
 import MultiSelectDropdown from "@/components/MultiSelectDropdown";
 
-const TabInitializer = ({ onTabChange }: { onTabChange: (tab: "coverage" | "activity") => void }) => {
+const TabInitializer = ({
+  onTabChange,
+}: {
+  onTabChange: (tab: "coverage" | "activity") => void;
+}) => {
   const searchParams = useSearchParams();
-  
+
   useEffect(() => {
     const tab = searchParams?.get("tab");
     onTabChange(tab === "activity" ? "activity" : "coverage");
@@ -73,9 +83,9 @@ const AdhocCoveragePage = () => {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [coverageHistory, setCoverageHistory] = useState<any[]>([]);
   const [coverageTrends, setCoverageTrends] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<
-    "scanner" | "history" | "compare"
-  >("scanner");
+  const [activeTab, setActiveTab] = useState<"scanner" | "history" | "compare">(
+    "scanner"
+  );
   const [timeframe, setTimeframe] = useState<"daily" | "weekly" | "monthly">(
     "weekly"
   );
@@ -244,7 +254,8 @@ const AdhocCoveragePage = () => {
         // Multi-branch scan
         const response = await scanMultipleBranches(repoUrl, branch);
         setSuccess(
-          response.data.message || "Started coverage scans for multiple branches"
+          response.data.message ||
+            "Started coverage scans for multiple branches"
         );
         setShowModal(false);
       } else {
@@ -462,7 +473,6 @@ const AdhocCoveragePage = () => {
                 />
               </div>
 
-              {/* Add the heatmap below when a history item is selected */}
               {selectedHistoryItem && (
                 <div className="mt-8 border-t border-orange-200 pt-4">
                   <div className="flex justify-between items-center mb-4">
@@ -539,7 +549,7 @@ const AdhocCoveragePage = () => {
       <Suspense fallback={null}>
         <TabInitializer onTabChange={setMainTab} />
       </Suspense>
-      
+
       <div className="max-w-6xl mx-auto mt-8">
         {/* Main tab controls */}
         <div className="flex justify-between items-center mb-6">
@@ -628,71 +638,11 @@ const AdhocCoveragePage = () => {
                     </h2>
                   </div>
 
-                  {jobId &&
-                    jobStatus &&
-                    jobStatus !== "completed" &&
-                    jobStatus !== "failed" && (
-                      <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md">
-                        <div className="flex items-start space-x-3">
-                          <Loader2 className="h-5 w-5 text-orange-500 animate-spin mt-0.5" />
-                          <div>
-                            <p className="text-orange-700 font-medium">
-                              Coverage scan in progress
-                            </p>
-                            <div className="mt-2 text-xs text-orange-400">
-                              Job ID: {jobId} | Status: {jobStatus}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                  {error && (
-                    <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md flex items-center gap-2 text-orange-700">
-                      <AlertCircle size={18} className="text-orange-500" />{" "}
-                      {error}
-                    </div>
-                  )}
-
-                  {success && (
-                    <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md flex items-center gap-2 text-orange-700">
-                      <CheckCircle2 size={18} className="text-orange-600" />{" "}
-                      {success}
-                    </div>
-                  )}
-
-                  {coverageResult && (
-                    <div className="mt-6 space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="bg-orange-50 p-4 rounded-md border border-orange-100">
-                          <span className="block text-sm text-orange-400">
-                            Total Coverage
-                          </span>
-                          <span className="text-2xl font-bold text-orange-600">
-                            {coverageResult.total_coverage?.toFixed(2)}%
-                          </span>
-                        </div>
-                        <div className="bg-orange-50 p-4 rounded-md border border-orange-100">
-                          <span className="block text-sm text-orange-400">
-                            Files Scanned
-                          </span>
-                          <span className="text-2xl font-bold text-orange-600">
-                            {coverageResult.files?.length ?? 0}
-                          </span>
-                        </div>
-                      </div>
-
-                      {coverageResult.files &&
-                        coverageResult.files.length > 0 && (
-                          <FileHeatmap files={coverageResult.files} />
-                        )}
-                    </div>
-                  )}
                   <div className="flex flex-col md:flex-row md:items-end md:space-x-4">
                     <div className="flex flex-1 items-end space-x-2">
                       {/* Dropdown */}
                       <div className="w-1/2">
-                        <label className="block text-sm text-orange-700 mb-1">
+                        <label className="block text-sm text-gray-700 mb-1">
                           Repository
                         </label>
                         <SearchableDropdown
@@ -707,7 +657,6 @@ const AdhocCoveragePage = () => {
                           error={searchError}
                         />
                       </div>
-                      {/* OR separator */}
                       <div className="flex items-center h-full pb-2">
                         <span className="mx-2 text-orange-400 font-bold">
                           OR
@@ -715,12 +664,12 @@ const AdhocCoveragePage = () => {
                       </div>
                       {/* Manual input */}
                       <div className="w-1/2">
-                        <label className="block text-sm text-orange-700 mb-1">
-                          Enter Repository URL
+                        <label className="block text-sm text-gray-700 mb-1">
+                          Enter any Repository URL
                         </label>
                         <input
                           type="text"
-                          className="w-full p-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200"
+                          className="w-full p-2 bg-orange-50 text-gray-900 rounded-md border border-orange-200"
                           placeholder="https://github.com/owner/repo"
                           value={repoInputMode === "manual" ? repoUrl : ""}
                           onChange={handleRepoInputChange}
@@ -728,7 +677,7 @@ const AdhocCoveragePage = () => {
                       </div>
                       {/* Branch selector */}
                       <div className="w-1/3 ml-2">
-                        <label className="block text-sm text-orange-700 mb-1">
+                        <label className="block text-sm text-gray-700 mb-1">
                           Branch(es)
                         </label>
                         <MultiSelectDropdown
@@ -760,6 +709,93 @@ const AdhocCoveragePage = () => {
                       />
                     </div>
                   </div>
+                  {jobId &&
+                    jobStatus &&
+                    jobStatus !== "completed" &&
+                    jobStatus !== "failed" && (
+                      <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md">
+                        <div className="flex items-start space-x-3">
+                          <Loader2 className="h-5 w-5 text-orange-500 animate-spin mt-0.5" />
+                          <div>
+                            <p className="text-orange-700 font-medium">
+                              Coverage scan in progress
+                            </p>
+                            <div className="mt-2 text-xs text-orange-400">
+                              Job ID: {jobId} | Status: {jobStatus}
+                            </div>
+                          </div>
+                          {/* Remove notification button */}
+                          <button
+                            className="ml-auto text-orange-400 hover:text-orange-600"
+                            title="Dismiss notification"
+                            onClick={() => {
+                              setJobId(null);
+                              setJobStatus(null);
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                  {error && (
+                    <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md flex items-center gap-2 text-orange-700">
+                      <AlertCircle size={18} className="text-orange-500" />{" "}
+                      {error}
+                      {/* Remove notification button */}
+                      <button
+                        className="ml-auto text-orange-400 hover:text-orange-600"
+                        title="Dismiss notification"
+                        onClick={() => setError(null)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+
+                  {success && (
+                    <div className="mt-4 bg-orange-50 border border-orange-200 p-4 rounded-md flex items-center gap-2 text-orange-700">
+                      <CheckCircle2 size={18} className="text-orange-600" />{" "}
+                      {success}
+                      {/* Remove notification button */}
+                      <button
+                        className="ml-auto text-orange-400 hover:text-orange-600"
+                        title="Dismiss notification"
+                        onClick={() => setSuccess(null)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+
+                  {coverageResult && (
+                    <div className="mt-6 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="bg-orange-50 p-4 rounded-md border border-orange-100">
+                          <span className="block text-sm text-orange-400">
+                            Total Coverage
+                          </span>
+                          <span className="text-2xl font-bold text-orange-600">
+                            {coverageResult.total_coverage?.toFixed(2)}%
+                          </span>
+                        </div>
+                        <div className="bg-orange-50 p-4 rounded-md border border-orange-100">
+                          <span className="block text-sm text-orange-400">
+                            Files Scanned
+                          </span>
+                          <span className="text-2xl font-bold text-orange-600">
+                            {coverageResult.files?.length ?? 0}
+                          </span>
+                        </div>
+                      </div>
+
+                      {coverageResult.files &&
+                        coverageResult.files.length > 0 && (
+                          <FileHeatmap files={coverageResult.files} />
+                        )}
+                    </div>
+                  )}
                 </>
               ) : activeTab === "compare" ? (
                 <div className="mt-4">
@@ -1393,8 +1429,7 @@ const AdhocCoveragePage = () => {
                             onChange={(e) =>
                               setScanSettings({
                                 ...scanSettings,
-                                cloneTimeout:
-                                  parseInt(e.target.value) || 300,
+                                cloneTimeout: parseInt(e.target.value) || 300,
                               })
                             }
                             className="w-full max-w-xs p-2 bg-orange-50 text-orange-900 rounded-md border border-orange-200"

@@ -83,12 +83,12 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
           <table className="min-w-full rounded-lg overflow-hidden border border-orange-100">
             <thead className="bg-orange-50">
               <tr>
-                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Branch</th>
-                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Commit</th>
-                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Coverage</th>
-                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Total Scans</th>
-                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Scanned</th>
-                <th className="py-2 px-4 text-center text-sm font-medium text-orange-700">Actions</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-gray-700">Branch</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-gray-700">Commit</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-gray-700">Coverage</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-gray-700">Total Scans</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-gray-700">Scanned</th>
+                <th className="py-2 px-4 text-center text-sm font-medium text-gray-700">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-orange-100">
@@ -97,13 +97,13 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
                   key={`${history.id}-${history.branch}-${index}`} 
                   className="bg-white hover:bg-orange-50 transition-colors"
                 >
-                  <td className="py-2 px-4 text-center text-orange-900">
+                  <td className="py-2 px-4 text-center text-gray-900">
                     <div className="flex items-center justify-center">
                       <GitBranch size={14} className="mr-2 text-orange-300" />
                       <span>{history.branch || 'default'}</span>
                     </div>
                   </td>
-                  <td className="py-2 px-4 text-center text-orange-400 font-mono text-xs">
+                  <td className="py-2 px-4 text-center text-gray-400 font-mono text-xs">
                     {history.commit_hash ? (
                       <div className="flex items-center justify-center">
                         <Code size={14} className="mr-2 text-orange-300" />
@@ -116,13 +116,13 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
                   <td className={`py-2 px-4 text-center font-semibold ${getCoverageColorClass(history.total_coverage)}`}>
                     {history.total_coverage.toFixed(1)}%
                   </td>
-                  <td className="py-2 px-4 text-center text-sm text-orange-600">
+                  <td className="py-2 px-4 text-center text-sm text-gray-600">
                     <div className="flex items-center justify-center">
                       <Hash size={14} className="mr-2 text-orange-300" />
                       {history.branch_scans || 0}  
                     </div>
                   </td>
-                  <td className="py-2 px-4 text-center text-sm text-orange-400">
+                  <td className="py-2 px-4 text-center text-sm text-gray-400">
                     <div className="flex items-center justify-center">
                       <Calendar size={14} className="mr-2 text-orange-300" />
                       {formatDate(history.timestamp)}
@@ -137,7 +137,7 @@ const CoverageHistoryList: React.FC<CoverageHistoryListProps> = ({
                           onSelectHistory(history);
                         }
                       }}
-                      className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
+                      className="text-xs px-2 py-1 bg-orange-100 text-gray-700 rounded hover:bg-orange-200 transition-colors"
                     >
                       View Details
                     </button>

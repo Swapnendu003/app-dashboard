@@ -1,6 +1,13 @@
 import React from 'react';
 import { FileDiff } from '@/types/coverage';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, PieChart, Pie, Legend, Sector } from 'recharts';
+import { Info } from 'lucide-react';
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface FileCoverageAnalyticsProps {
   fileDiffs: FileDiff[];
@@ -62,7 +69,23 @@ export const FileCoverageAnalytics: React.FC<FileCoverageAnalyticsProps> = ({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
       <div className="bg-white p-4 rounded-lg border border-orange-100">
-        <h3 className="text-lg font-semibold mb-4 text-orange-700">Coverage Distribution</h3>
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="text-lg font-semibold text-orange-700">Coverage Distribution</h3>
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger>
+                <Info className="h-4 w-4 text-orange-400 cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs">
+                  This bar chart shows how files are distributed across coverage ranges for both branches.
+                  Each bar represents the number of files in a coverage range for each branch.
+                  Hover over bars to see exact counts.
+                </p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
+        </div>
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
@@ -82,7 +105,23 @@ export const FileCoverageAnalytics: React.FC<FileCoverageAnalyticsProps> = ({
       </div>
 
       <div className="bg-white p-4 rounded-lg border border-orange-100">
-        <h3 className="text-lg font-semibold mb-4 text-orange-700">Coverage Impact</h3>
+        <div className="flex items-center gap-2 mb-4">
+          <h3 className="text-lg font-semibold mb-0 text-orange-700">Coverage Impact</h3>
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger>
+                <Info className="h-4 w-4 text-orange-400 cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs">
+                  This pie chart shows the impact of coverage changes between branches.
+                  "Improved" means coverage increased, "Declined" means coverage decreased, and "Unchanged" means no change.
+                  Hover over slices to see exact counts.
+                </p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
+        </div>
         <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>

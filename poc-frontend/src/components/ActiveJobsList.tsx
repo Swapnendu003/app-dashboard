@@ -132,21 +132,26 @@ const ActiveJobsList: React.FC<ActiveJobsListProps> = ({ onRefresh, onViewResult
   const getStatusBadge = (status: string) => {
     switch(status) {
       case 'pending':
-        return <span className="px-2 py-1 bg-orange-100 text-orange-500 rounded-full text-xs">Pending</span>;
+        return <span className="inline-flex items-center justify-center px-2 py-1 bg-orange-100 text-orange-500 rounded-full text-xs">
+          Pending
+        </span>;
       case 'in_progress':
-        return <span className="px-2 py-1 bg-orange-200 text-orange-600 rounded-full text-xs flex items-center">
-          <Loader2 className="w-3 h-3 mr-1 animate-spin" />In Progress
+        return <span className="inline-flex items-center justify-center px-2 py-1 bg-orange-200 text-orange-600 rounded-full text-xs">
+          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+          In Progress
         </span>;
       case 'completed':
-        return <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs flex items-center">
-          <CheckCircle2 className="w-3 h-3 mr-1" />Completed
+        return <span className="inline-flex items-center justify-center px-2 py-1 bg-orange-100 text-orange-700 rounded-full text-xs">
+          <CheckCircle2 className="w-3 h-3 mr-1" />
+          Completed
         </span>;
       case 'failed':
-        return <span className="px-2 py-1 bg-orange-50 text-orange-400 rounded-full text-xs flex items-center">
-          <XCircle className="w-3 h-3 mr-1" />Failed
+        return <span className="inline-flex items-center justify-center px-2 py-1 bg-orange-50 text-orange-400 rounded-full text-xs">
+          <XCircle className="w-3 h-3 mr-1" />
+          Failed
         </span>;
       default:
-        return <span className="px-2 py-1 bg-orange-50 text-orange-400 rounded-full text-xs">{status}</span>;
+        return <span className="inline-flex items-center justify-center px-2 py-1 bg-orange-50 text-orange-400 rounded-full text-xs">{status}</span>;
     }
   };
 
@@ -192,7 +197,6 @@ const ActiveJobsList: React.FC<ActiveJobsListProps> = ({ onRefresh, onViewResult
                   <th className="px-4 py-3 text-center text-xs font-medium text-orange-700 uppercase tracking-wider">Branch</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-orange-700 uppercase tracking-wider">Status</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-orange-700 uppercase tracking-wider">Progress</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-orange-700 uppercase tracking-wider">Started</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-orange-700 uppercase tracking-wider">Duration</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-orange-700 uppercase tracking-wider">Actions</th>
                 </tr>
@@ -200,23 +204,23 @@ const ActiveJobsList: React.FC<ActiveJobsListProps> = ({ onRefresh, onViewResult
               <tbody className="bg-white divide-y divide-orange-100">
                 {jobs.map((job) => (
                   <tr key={job.id} className="hover:bg-orange-50">
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-orange-900 text-center">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-center">
                       {job.repository ? (
                         <span className="truncate block max-w-xs mx-auto" title={job.repository}>
                           {job.repository.split('/').pop()}
                         </span>
                       ) : (
-                        <span className="text-orange-400">Unknown</span>
+                        <span className="text-gray-400">Unknown</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-orange-900 text-center">
-                      {job.branch || <span className="text-orange-400">default</span>}
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-center">
+                      {job.branch || <span className="text-gray-400">default</span>}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-center">
                       {getStatusBadge(job.status)}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-center">
-                      <div className="w-full bg-orange-100 rounded-full h-2.5">
+                      <div className="w-full bg-gray-100 rounded-full h-2.5">
                         <div 
                           className={`h-2.5 rounded-full ${
                             job.status === 'completed' ? 'bg-green-500' : 
@@ -226,12 +230,9 @@ const ActiveJobsList: React.FC<ActiveJobsListProps> = ({ onRefresh, onViewResult
                           style={{ width: `${job.progress}%` }}
                         ></div>
                       </div>
-                      <span className="text-xs text-orange-700">{job.progress}%</span>
+                      <span className="text-xs text-gray-700">{job.progress}%</span>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-orange-900 text-center">
-                      {formatTime(job.start_time)}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-orange-900 text-center">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-center">
                       {calculateElapsedTime(job.start_time, job.end_time)}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-center">

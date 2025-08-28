@@ -65,7 +65,7 @@ const LanguageBar: React.FC<LanguageBarProps> = ({ languages }) => {
 
   return (
     <div className="mt-3">
-      <div className="text-xs text-orange-400 mb-1">Languages</div>
+      <div className="text-xs text-gray-600 mb-1">Languages</div>
       <div className="w-full h-2 bg-orange-100 rounded-full overflow-hidden flex">
         {sortedLanguages.map(([lang, percent]) => (
           <div
@@ -687,7 +687,7 @@ const RepositoriesPage = () => {
                         {repo.description || "No description provided"}
                       </p>
                       <LanguageBar languages={repo.languages} />
-                      <div className="flex flex-wrap gap-4 text-xs text-orange-400 mt-3">
+                      <div className="flex flex-wrap gap-4 text-xs text-gray-600 mt-3">
                         <span className="flex items-center">
                           <span className="font-medium mr-1">Created:</span>
                           {formatDate(repo.created_at)}

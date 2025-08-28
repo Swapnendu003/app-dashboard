@@ -143,9 +143,26 @@ const HistoryReport = () => {
             </div>
           </div>
         ) : historyLoading ? (
-          <div className="text-center py-12">
-            <Loader2 className="w-8 h-8 text-orange-500 animate-spin mx-auto" />
-            <p className="mt-2 text-orange-600">Loading coverage history...</p>
+          <div className="space-y-8">
+            <div className="bg-white rounded-lg p-4">
+              <div className="h-[300px] bg-gray-100 rounded-lg animate-pulse" />
+            </div>
+            <div className="space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="bg-white p-4 rounded-lg border border-gray-100">
+                  <div className="flex justify-between items-center">
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 bg-gray-100 rounded w-1/4 animate-pulse" />
+                      <div className="h-3 bg-gray-100 rounded w-1/2 animate-pulse" />
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="h-8 w-20 bg-gray-100 rounded animate-pulse" />
+                      <div className="h-8 w-20 bg-gray-100 rounded animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <>

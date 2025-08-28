@@ -132,7 +132,7 @@ const CoverageHistoryChart: React.FC<CoverageHistoryChartProps> = ({
               className="w-3 h-3 rounded-full"
               style={{ backgroundColor: branchColors[index % branchColors.length] }}
             />
-            <span className="text-sm text-orange-700 font-medium">{branch}</span>
+            <span className="text-sm text-gray-700 font-medium">{branch}</span>
           </div>
         ))}
       </div>

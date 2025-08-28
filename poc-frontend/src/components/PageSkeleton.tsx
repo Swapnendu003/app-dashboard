@@ -153,11 +153,11 @@ const PageSkeleton: React.FC<PageSkeletonProps> = ({
                     >
                       <div className="flex items-center w-full text-left">
                         <div className="flex-1">
-                          <div className="font-medium text-orange-700">
-                            Coverage Scan
-                          </div>
-                          <div className="text-sm text-orange-500">
+                          <div className="font-medium text-gray-900">
                             {job.repository?.split('/').pop()}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            Progress: {job.progress ?? 0}%
                           </div>
                         </div>
                         <Loader2 className="h-4 w-4 text-orange-500 animate-spin ml-2" />

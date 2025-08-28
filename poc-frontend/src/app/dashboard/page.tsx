@@ -67,7 +67,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import CTAButton from "@/components/ui/CTAButton";
 import AnimatedList from "@/components/AnimatedList";
 import { useRouter } from "next/navigation";
@@ -568,7 +567,7 @@ const ProfessionalDashboard = () => {
                 <p className="text-3xl font-bold text-orange-500">
                   {metrics.repositories}
                 </p>
-                <p className="text-sm text-orange-400 mt-2">Active repositories being tracked</p>
+                <p className="text-sm text-gray-500 mt-2">Active repositories being tracked</p>
                 <BorderBeam
                   duration={4}
                   size={300}
@@ -590,7 +589,7 @@ const ProfessionalDashboard = () => {
                 <p className="text-3xl font-bold text-orange-500">
                   {metrics.totalScans}
                 </p>
-                <p className="text-sm text-orange-400 mt-2">Coverage checks completed</p>
+                <p className="text-sm text-gray-500 mt-2">Coverage checks completed</p>
                 <BorderBeam
                   duration={4}
                   size={300}
@@ -612,7 +611,7 @@ const ProfessionalDashboard = () => {
                 <p className="text-3xl font-bold text-orange-500">
                   {metrics.passRate.toFixed(1)}%
                 </p>
-                <p className="text-sm text-orange-400 mt-2">Code coverage achievement</p>
+                <p className="text-sm text-gray-500 mt-2">Code coverage achievement</p>
                 <BorderBeam
                   duration={4}
                   size={300}
@@ -639,7 +638,7 @@ const ProfessionalDashboard = () => {
                   <p className="text-3xl font-bold text-orange-500">
                     {metrics.recentScans}
                   </p>
-                  <p className="text-sm text-orange-400 mt-2">Coverage checks this week</p>
+                  <p className="text-sm text-gray-500 mt-2">Coverage checks this week</p>
                 </button>
                 <BorderBeam
                   duration={4}
@@ -897,15 +896,15 @@ const ProfessionalDashboard = () => {
                   <CardContent>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-orange-700">Total Scans Run</span>
+                        <span className="text-sm font-medium text-gray-700">Total Scans Run</span>
                         <span className="text-lg font-bold text-orange-500">{metrics.totalScans.toLocaleString()}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-orange-700">Repositories Scanned</span>
+                        <span className="text-sm font-medium text-gray-700">Repositories Scanned</span>
                         <span className="text-lg font-bold text-orange-500">{metrics.repositories}</span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-orange-700">Average Coverage Achieved</span>
+                        <span className="text-sm font-medium text-gray-700">Average Coverage Achieved</span>
                         <span className="text-lg font-bold text-orange-500">{metrics.passRate.toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-orange-200 rounded-full h-2">

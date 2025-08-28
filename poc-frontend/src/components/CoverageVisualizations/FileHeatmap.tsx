@@ -54,7 +54,6 @@ const EChartsComponent: React.FC<{ option: any; height?: number }> = ({ option, 
   const chartInstance = useRef<any>(null);
 
   useEffect(() => {
-    // Load ECharts from CDN
     if (!window.echarts) {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js';
@@ -113,19 +112,18 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [fileTypeFilter, setFileTypeFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'success' | 'error'>('all');
+  const [coverageFilter, setCoverageFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const itemsPerPage = 10;
   
-  // Generate color based on coverage percentage
   const getHeatmapColor = (coverage: number): string => {
-    if (coverage >= 80) return '#22c55e'; // green-500
-    if (coverage >= 60) return '#84cc16'; // lime-500
-    if (coverage >= 40) return '#eab308'; // yellow-500
-    if (coverage >= 20) return '#f97316'; // orange-500
-    return '#ef4444'; // red-500
+    if (coverage >= 80) return '#22c55e';
+    if (coverage >= 60) return '#84cc16';
+    if (coverage >= 40) return '#eab308';
+    if (coverage >= 20) return '#f97316';
+    return '#ef4444';
   };
 
-  // Get file basename from path
   const getFileName = (filePath: string): string => {
     const parts = filePath.split('/');
     return parts[parts.length - 1];
@@ -136,13 +134,11 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
     return parts.slice(0, -1).join('/') || '.';
   };
 
-  // Get all unique file extensions for filter dropdown
   const allExtensions = useMemo(() => {
     const exts = Array.from(new Set(files.map(f => f.file.split('.').pop() || 'unknown')));
     return exts.sort();
   }, [files]);
 
-  // Sort and filter files
   useEffect(() => {
     if (!files) {
       setFilteredFiles([]);
@@ -151,7 +147,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
     
     let result = [...files];
     
-    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(file => 
@@ -159,20 +154,35 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
       );
     }
 
-    // Filter by file type (extension)
     if (fileTypeFilter !== 'all') {
       result = result.filter(file => (file.file.split('.').pop() || 'unknown') === fileTypeFilter);
     }
-    // Filter by status
-    if (statusFilter !== 'all') {
-      result = result.filter(file => file.status === statusFilter);
+
+    if (statusFilter === 'error') {
+      result = result.filter(file => file.error);
+    } else if (statusFilter === 'success') {
+      result = result.filter(file => !file.error);
+    }
+
+    if (coverageFilter !== 'all') {
+      result = result.filter(file => {
+        switch (coverageFilter) {
+          case 'high':
+            return file.coverage >= 80;
+          case 'medium':
+            return file.coverage >= 40 && file.coverage < 80;
+          case 'low':
+            return file.coverage < 40;
+          default:
+            return true;
+        }
+      });
     }
     
-    // Sort files
     result.sort((a, b) => {
       switch (sortBy) {
         case 'coverage':
-          return b.coverage - a.coverage; // high to low
+          return b.coverage - a.coverage;
         case 'name':
           return getFileName(a.file).localeCompare(getFileName(b.file));
         case 'directory':
@@ -184,9 +194,8 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
     
     setFilteredFiles(result);
     setCurrentPage(1);
-  }, [searchQuery, files, sortBy, fileTypeFilter, statusFilter]);
+  }, [searchQuery, files, sortBy, fileTypeFilter, statusFilter, coverageFilter]);
 
-  // Pagination
   const paginatedFiles = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredFiles.slice(startIndex, startIndex + itemsPerPage);
@@ -194,7 +203,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
 
   const totalPages = Math.ceil(filteredFiles.length / itemsPerPage);
 
-  // Statistics and chart data
   const stats = useMemo(() => {
     if (!files) return { 
       total: 0, withErrors: 0, avgCoverage: 0, highCoverage: 0, lowCoverage: 0,
@@ -206,7 +214,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
     const highCoverage = files.filter(f => f.coverage >= 80).length;
     const lowCoverage = files.filter(f => f.coverage < 40).length;
     
-    // Coverage ranges for charts
     const coverageRanges = [
       { range: '≥80%', color: '#22c55e', count: files.filter(f => f.coverage >= 80).length },
       { range: '60-79%', color: '#84cc16', count: files.filter(f => f.coverage >= 60 && f.coverage < 80).length },
@@ -215,7 +222,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
       { range: '<20%', color: '#ef4444', count: files.filter(f => f.coverage < 20).length },
     ];
 
-    // Directory statistics
     const dirMap = new Map<string, { count: number; totalCoverage: number }>();
     files.forEach(file => {
       const dir = getDirectory(file.file);
@@ -235,7 +241,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
       .sort((a, b) => b.fileCount - a.fileCount)
       .slice(0, 10);
 
-    // Extension statistics
     const extMap = new Map<string, { count: number; totalCoverage: number }>();
     files.forEach(file => {
       const ext = file.file.split('.').pop() || 'unknown';
@@ -266,10 +271,8 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
     };
   }, [files]);
 
-  // Chart options
   const pieChartOption = useMemo(() => ({
     title: {
-      // text: 'Coverage Distribution',
       left: 'center',
       textStyle: {
         fontSize: 16,
@@ -308,7 +311,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
 
   const barChartOption = useMemo(() => ({
     title: {
-      // text: 'Coverage by Directory',
       left: 'center',
       textStyle: {
         fontSize: 16,
@@ -356,6 +358,11 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
     setShowErrorModal(true);
   };
 
+  const handleErrorsClick = () => {
+    setViewMode('list');
+    setStatusFilter('error');
+  };
+
   const topDirectoryItems = useMemo(() => {
     return stats.directoryStats.map((dir) => {
       return (
@@ -390,7 +397,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
 
   return (
     <div className="bg-white rounded-lg border border-orange-100 p-6 my-4 shadow-sm">
-      {/* Header */}
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-6 gap-4">
         <div>
           <h3 className="text-xl font-semibold text-orange-700 flex items-center gap-2">
@@ -400,12 +406,16 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
           <p className="text-sm text-orange-500 mt-1">
             {stats.total} files analyzed
             {stats.withErrors > 0 && (
-              <span className="ml-2 text-red-600">• {stats.withErrors} errors detected</span>
+              <button
+                onClick={handleErrorsClick}
+                className="ml-2 text-red-600 hover:text-red-800 hover:underline inline-flex items-center gap-1"
+              >
+                • {stats.withErrors} errors detected <TrendingUp className="w-3 h-3" />
+              </button>
             )}
           </p>
         </div>
         
-        {/* View Mode Toggles - Now only Analytics and List */}
         <div className="flex items-center gap-1 bg-orange-50 p-1 rounded-lg">
           <button
             onClick={() => setViewMode('analytics')}
@@ -434,10 +444,53 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
         </div>
       </div>
 
-      {/* Analytics View (Default) */}
+      {viewMode === 'list' && (
+        <div className="mb-4 flex flex-wrap gap-4 p-4 bg-orange-50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-orange-700">Status:</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'success' | 'error')}
+              className="rounded-md border border-orange-200 px-3 py-1 text-sm"
+            >
+              <option value="all">All</option>
+              <option value="success">Success</option>
+              <option value="error">Errors</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-orange-700">Coverage:</label>
+            <select
+              value={coverageFilter}
+              onChange={(e) => setCoverageFilter(e.target.value as 'all' | 'high' | 'medium' | 'low')}
+              className="rounded-md border border-orange-200 px-3 py-1 text-sm"
+            >
+              <option value="all">All</option>
+              <option value="high">High (≥80%)</option>
+              <option value="medium">Medium (40-79%)</option>
+              <option value="low">Low (&lt;40%)</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-orange-700">File Type:</label>
+            <select
+              value={fileTypeFilter}
+              onChange={(e) => setFileTypeFilter(e.target.value)}
+              className="rounded-md border border-orange-200 px-3 py-1 text-sm"
+            >
+              <option value="all">All</option>
+              {allExtensions.map(ext => (
+                <option key={ext} value={ext}>{ext}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       {viewMode === 'analytics' && (
         <div className="space-y-8">
-          {/* Key Metrics */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <SpotlightCard
               className="custom-spotlight-card bg-gradient-to-br from-blue-100 to-blue-50 border border-blue-200"
@@ -489,7 +542,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
             </SpotlightCard>
           </div>
           
-          {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <SpotlightCard className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200 hover:shadow-lg transition-all duration-300"
               spotlightColor='rgba(251, 146, 60, 0.44)'
@@ -544,9 +596,7 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
             </SpotlightCard>
           </div>
 
-          {/* Coverage Distribution and Top Directories Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Coverage Distribution Card */}
             <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300">
               <div className="flex items-center gap-2 mb-4">
                 <h4 className="text-lg font-semibold text-gray-700 flex items-center gap-2">
@@ -720,7 +770,6 @@ const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
             </div>
           </div>
 
-          {/* Enhanced Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
               <div className="text-sm text-gray-600">
