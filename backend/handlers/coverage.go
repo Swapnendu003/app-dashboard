@@ -700,10 +700,10 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 
 	log.Printf("INFO: %s Running git clone command: git %s", logPrefix, strings.Join(args, " "))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+	cloneCtx, cloneCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cloneCancel()
 
-	clone := exec.CommandContext(ctx, "git", args...)
+	clone := exec.CommandContext(cloneCtx, "git", args...)
 	if out, err := clone.CombinedOutput(); err != nil {
 		log.Printf("ERROR: %s Git clone failed: %v, output: %s", logPrefix, err, string(out))
 		return CoverageResponse{}, errors.New("Git clone failed: " + string(out))
@@ -958,108 +958,212 @@ func scanCoverage(req CoverageRequest, saveHistory bool) (CoverageResponse, erro
 		log.Printf("INFO: %s Got commit hash: %s", logPrefix, commitHash)
 	}
 
+	// if saveHistory {
+	// 	log.Printf("INFO: %s Saving coverage history to database", logPrefix)
+	// 	db, err := config.ConnectDB()
+	// 	if err == nil {
+	// 		collection := db.Collection("coverage_history")
+	// 		now := time.Now()
+	// 		var files []models.FileCoverage
+	// 		var hasErrors bool
+
+	// 		for _, f := range resp.Files {
+	// 			files = append(files, models.FileCoverage{
+	// 				File:     f.File,
+	// 				Coverage: f.Coverage,
+	// 				Status:   f.Status,
+	// 				Error:    f.Error,
+	// 			})
+
+	// 			if f.Error != "" || f.Status == "Failure" || f.Coverage == 0 {
+	// 				hasErrors = true
+	// 			}
+	// 		}
+
+	// 		scanRecord := models.ScanRecord{
+	// 			TotalCoverage: resp.TotalCoverage,
+	// 			Files:         files,
+	// 			Timestamp:     now,
+	// 			CommitHash:    commitHash,
+	// 		}
+	// 		branchName := req.Branch
+	// 		if branchName == "" {
+	// 			branchName = "main"
+	// 		}
+
+	// 		filter := bson.M{
+	// 			"repository": req.RepoURL,
+	// 			"user_id":    req.UserID,
+	// 		}
+	// 		var existingDoc struct {
+	// 			Branches map[string]struct {
+	// 				TotalScans int `bson:"total_scans"`
+	// 			} `bson:"branches"`
+	// 		}
+	// 		err := collection.FindOne(ctx, filter).Decode(&existingDoc)
+
+	// 		var totalScans int = 1
+	// 		if err == nil && existingDoc.Branches != nil {
+	// 			if branchData, exists := existingDoc.Branches[branchName]; exists {
+	// 				totalScans = branchData.TotalScans + 1
+	// 			}
+	// 		}
+
+	// 		update := bson.M{
+	// 			"$set": bson.M{
+	// 				fmt.Sprintf("branches.%s.latest_coverage", branchName): resp.TotalCoverage,
+	// 				fmt.Sprintf("branches.%s.last_updated", branchName):    now,
+	// 				fmt.Sprintf("branches.%s.total_scans", branchName):     totalScans,
+	// 				fmt.Sprintf("branches.%s.has_errors", branchName):      hasErrors,
+	// 			},
+	// 			"$push": bson.M{
+	// 				fmt.Sprintf("branches.%s.history", branchName): scanRecord,
+	// 			},
+	// 			"$inc": bson.M{
+	// 				"total_scans": 1,
+	// 			},
+	// 		}
+
+	// 		opts := options.Update().SetUpsert(true)
+	// 		_, err = collection.UpdateOne(ctx, filter, update, opts)
+	// 		if err != nil {
+	// 			log.Printf("WARNING: %s Failed to upsert coverage history: %v", logPrefix, err)
+	// 		} else {
+	// 			log.Printf("INFO: %s Successfully appended coverage history for branch %s (scan #%d)",
+	// 				logPrefix, branchName, totalScans)
+	// 		}
+
+	// 		repoCollection := db.Collection("repositories")
+	// 		filter = bson.M{
+	// 			"$or": []bson.M{
+	// 				{"html_url": req.RepoURL},
+	// 			},
+	// 		}
+
+	// 		update = bson.M{
+	// 			"$set": bson.M{
+	// 				fmt.Sprintf("branch_coverage.%s", branchName): resp.TotalCoverage,
+	// 				"last_coverage_at":                            now,
+	// 				"overall_coverage":                            resp.TotalCoverage,
+	// 				"coverage_status":                             true,
+	// 			},
+	// 		}
+
+	// 		_, err = repoCollection.UpdateOne(ctx, filter, update)
+	// 		if err != nil {
+	// 			log.Printf("WARNING: %s Failed to update repository coverage: %v", logPrefix, err)
+	// 		} else {
+	// 			log.Printf("INFO: %s Successfully updated repository coverage for branch %s to %.2f%% and marked coverage status as true",
+	// 				logPrefix, branchName, resp.TotalCoverage)
+	// 		}
+	// 	} else {
+	// 		log.Printf("WARNING: %s Failed to save coverage history: %v", logPrefix, err)
+	// 	}
+	// }
 	if saveHistory {
-		log.Printf("INFO: %s Saving coverage history to database", logPrefix)
-		db, err := config.ConnectDB()
-		if err == nil {
-			collection := db.Collection("coverage_history")
-			now := time.Now()
-			var files []models.FileCoverage
-			var hasErrors bool
+    log.Printf("INFO: %s Saving coverage history to database", logPrefix)
 
-			for _, f := range resp.Files {
-				files = append(files, models.FileCoverage{
-					File:     f.File,
-					Coverage: f.Coverage,
-					Status:   f.Status,
-					Error:    f.Error,
-				})
+    db, err := config.ConnectDB()
+    if err != nil {
+        log.Printf("WARNING: %s Failed to save coverage history: %v", logPrefix, err)
+    } else {
+        dbCtx, dbCancel := context.WithTimeout(context.Background(), 45*time.Second)
+        defer dbCancel()
 
-				if f.Error != "" || f.Status == "Failure" || f.Coverage == 0 {
-					hasErrors = true
-				}
-			}
+        collection := db.Collection("coverage_history")
+        now := time.Now()
+        var files []models.FileCoverage
+        var hasErrors bool
 
-			scanRecord := models.ScanRecord{
-				TotalCoverage: resp.TotalCoverage,
-				Files:         files,
-				Timestamp:     now,
-				CommitHash:    commitHash,
-			}
-			branchName := req.Branch
-			if branchName == "" {
-				branchName = "main"
-			}
+        for _, f := range resp.Files {
+            files = append(files, models.FileCoverage{
+                File:     f.File,
+                Coverage: f.Coverage,
+                Status:   f.Status,
+                Error:    f.Error,
+            })
+            if f.Error != "" || f.Status == "Failure" {
+                hasErrors = true
+            }
+        }
 
-			filter := bson.M{
-				"repository": req.RepoURL,
-				"user_id":    req.UserID,
-			}
-			var existingDoc struct {
-				Branches map[string]struct {
-					TotalScans int `bson:"total_scans"`
-				} `bson:"branches"`
-			}
-			err := collection.FindOne(ctx, filter).Decode(&existingDoc)
+        scanRecord := models.ScanRecord{
+            TotalCoverage: resp.TotalCoverage,
+            Files:         files,
+            Timestamp:     now,
+            CommitHash:    commitHash,
+        }
 
-			var totalScans int = 1
-			if err == nil && existingDoc.Branches != nil {
-				if branchData, exists := existingDoc.Branches[branchName]; exists {
-					totalScans = branchData.TotalScans + 1
-				}
-			}
+        branchName := req.Branch
+        if branchName == "" {
+            branchName = "main"
+        }
 
-			update := bson.M{
-				"$set": bson.M{
-					fmt.Sprintf("branches.%s.latest_coverage", branchName): resp.TotalCoverage,
-					fmt.Sprintf("branches.%s.last_updated", branchName):    now,
-					fmt.Sprintf("branches.%s.total_scans", branchName):     totalScans,
-					fmt.Sprintf("branches.%s.has_errors", branchName):      hasErrors,
-				},
-				"$push": bson.M{
-					fmt.Sprintf("branches.%s.history", branchName): scanRecord,
-				},
-				"$inc": bson.M{
-					"total_scans": 1,
-				},
-			}
+        filter := bson.M{
+            "repository": req.RepoURL,
+            "user_id":    req.UserID,
+        }
 
-			opts := options.Update().SetUpsert(true)
-			_, err = collection.UpdateOne(ctx, filter, update, opts)
-			if err != nil {
-				log.Printf("WARNING: %s Failed to upsert coverage history: %v", logPrefix, err)
-			} else {
-				log.Printf("INFO: %s Successfully appended coverage history for branch %s (scan #%d)",
-					logPrefix, branchName, totalScans)
-			}
+        // use a separate err var to avoid shadow confusion
+        var existingDoc struct {
+            Branches map[string]struct {
+                TotalScans int `bson:"total_scans"`
+            } `bson:"branches"`
+        }
+        findErr := collection.FindOne(dbCtx, filter).Decode(&existingDoc)
 
-			repoCollection := db.Collection("repositories")
-			filter = bson.M{
-				"$or": []bson.M{
-					{"html_url": req.RepoURL},
-				},
-			}
+        totalScans := 1
+        if findErr == nil && existingDoc.Branches != nil {
+            if branchData, ok := existingDoc.Branches[branchName]; ok {
+                totalScans = branchData.TotalScans + 1
+            }
+        }
 
-			update = bson.M{
-				"$set": bson.M{
-					fmt.Sprintf("branch_coverage.%s", branchName): resp.TotalCoverage,
-					"last_coverage_at":                            now,
-					"overall_coverage":                            resp.TotalCoverage,
-					"coverage_status":                             true,
-				},
-			}
+        update := bson.M{
+            "$set": bson.M{
+                fmt.Sprintf("branches.%s.latest_coverage", branchName): resp.TotalCoverage,
+                fmt.Sprintf("branches.%s.last_updated", branchName):    now,
+                fmt.Sprintf("branches.%s.total_scans", branchName):     totalScans,
+                fmt.Sprintf("branches.%s.has_errors", branchName):      hasErrors,
+            },
+            "$push": bson.M{
+                fmt.Sprintf("branches.%s.history", branchName): scanRecord,
+            },
+            "$inc": bson.M{"total_scans": 1},
+        }
 
-			_, err = repoCollection.UpdateOne(ctx, filter, update)
-			if err != nil {
-				log.Printf("WARNING: %s Failed to update repository coverage: %v", logPrefix, err)
-			} else {
-				log.Printf("INFO: %s Successfully updated repository coverage for branch %s to %.2f%% and marked coverage status as true",
-					logPrefix, branchName, resp.TotalCoverage)
-			}
-		} else {
-			log.Printf("WARNING: %s Failed to save coverage history: %v", logPrefix, err)
-		}
-	}
+        if _, upErr := collection.UpdateOne(dbCtx, filter, update, options.Update().SetUpsert(true)); upErr != nil {
+            log.Printf("WARNING: %s Failed to upsert coverage history: %v", logPrefix, upErr)
+        } else {
+            log.Printf("INFO: %s Successfully appended coverage history for branch %s (scan #%d)",
+                logPrefix, branchName, totalScans)
+        }
+
+        // repositories update – use its own ctx too (optional but clean)
+        repoCtx, repoCancel := context.WithTimeout(context.Background(), 30*time.Second)
+        defer repoCancel()
+
+        repoCollection := db.Collection("repositories")
+        repoFilter := bson.M{
+            "$or": []bson.M{{"html_url": req.RepoURL}},
+        }
+        repoUpdate := bson.M{
+            "$set": bson.M{
+                fmt.Sprintf("branch_coverage.%s", branchName): resp.TotalCoverage,
+                "last_coverage_at":                            now,
+                "overall_coverage":                            resp.TotalCoverage,
+                "coverage_status":                             true,
+            },
+        }
+        if _, rErr := repoCollection.UpdateOne(repoCtx, repoFilter, repoUpdate); rErr != nil {
+            log.Printf("WARNING: %s Failed to update repository coverage: %v", logPrefix, rErr)
+        } else {
+            log.Printf("INFO: %s Successfully updated repository coverage for branch %s to %.2f%%",
+                logPrefix, branchName, resp.TotalCoverage)
+        }
+    }
+}
+
 
 	log.Printf("INFO: %s Coverage scan completed successfully. Total coverage: %.2f%%",
 		logPrefix, resp.TotalCoverage)
