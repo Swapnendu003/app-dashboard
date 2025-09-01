@@ -71,7 +71,7 @@ I developed a full-stack solution that automatically detects Go, Java, Python, a
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Frontend      │    │   Backend API    │    │   Data Layer    │
 │   (Next.js)     │◄──►│   (Go + Gin)     │◄──►│   MongoDB       │
-│                 │    │   - GitHub OAuth │    │   Redis Cache   │
+│                 │    │   - GitHub OAuth │    │    │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                 ▲
                                 │
