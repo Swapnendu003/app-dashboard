@@ -8,6 +8,7 @@ declare global {
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Search, AlertCircle, Grid, List, BarChart3, TrendingUp, FileText, Zap, PieChart, Info } from 'lucide-react';
+import {DEFAULT_MOCKFILE_COUNT} from "@/constants/values"
 
 import SpotlightCard from '../SpotLightCard';
 import AnimatedList from '../AnimatedList';
@@ -100,9 +101,9 @@ const EChartsComponent: React.FC<{ option: any; height?: number }> = ({ option, 
 };
 
 const FileHeatmap: React.FC<FileHeatmapProps> = ({ files: propFiles }) => {
- 
-  const files = propFiles && propFiles.length > 0 ? propFiles : generateMockFiles(1247);
-  
+
+  const files = propFiles && propFiles.length > 0 ? propFiles : generateMockFiles(DEFAULT_MOCKFILE_COUNT);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredFiles, setFilteredFiles] = useState<FileCoverage[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileCoverage | null>(null);

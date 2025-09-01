@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import { Tooltip } from 'react-tooltip';
+import {WEEKS_IN_YEAR} from '@/constants/values'
 
 interface DailyActivity {
   date: string;
@@ -134,7 +135,7 @@ const ActivityGraph: React.FC<ActivityGraphProps> = ({ activities, totalCount = 
           </div>
           
           {/* Activity grid */}
-          <div className="flex-1 grid grid-cols-53 gap-[2px]">
+          <div className="flex-1 grid grid-cols-${WEEKS_IN_YEAR} gap-[2px]">
             {weeks.map((week, weekIndex) => (
               <React.Fragment key={weekIndex}>
                 {week.map((day, dayIndex) => (
